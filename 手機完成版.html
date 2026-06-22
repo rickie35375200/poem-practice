@@ -1207,10 +1207,18 @@
                         clonedTile.setAttribute('draggable', 'true');
                         clonedTile.textContent = wordText;
 
-                        // 🗺️ 調整點擊生成時的初始偏離幅度
-                        const randomOffset = Math.floor(Math.random() * 120) - 60;
-                        clonedTile.style.left = (180 + randomOffset) + 'px';
-                        clonedTile.style.top = (150 + randomOffset) + 'px';
+                        // 👇 1. 🔍 新增這段：動態獲取當前畫布的實際像素寬高（自動適應電腦或手機）
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const canvasWidth = canvasRect.width;
+                        const canvasHeight = canvasRect.height;
+
+                        // 👇 2. 🧮 修正：根據目前螢幕大小，計算出絕對安全的置中位置（扣除字卡寬高預估值）
+                        const safeMaxLeft = Math.max(50, canvasWidth - 100);
+                        const safeMaxTop = Math.max(50, canvasHeight - 60);
+
+                        // 🗺️ 調整點擊生成時的初始偏離幅度（改為在畫布安全範圍內隨機散落）
+                        clonedTile.style.left = (Math.random() * safeMaxLeft) + 'px';
+                        clonedTile.style.top = (Math.random() * safeMaxTop) + 'px';
 
                         // 🔄 點擊生成或雙擊加入時，大幅增加隨機偏轉弧度 (-5.5 deg ~ +5.5 deg)
                         const randomRotate = (Math.random() * 11 - 5.5).toFixed(1);
