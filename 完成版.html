@@ -1434,6 +1434,54 @@
                 }
             });
         </script>
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                // 1. 靈感範例按鈕
+                const autoScrollBtn1 = document.getElementById('generate-poem-btn');
+                if (autoScrollBtn1) {
+                    autoScrollBtn1.addEventListener('click', () => {
+                        setTimeout(() => {
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 50); // 延遲50毫秒，確保字卡產生後再滑順往上捲
+                    });
+                }
+
+                // 2. 寫下詞彙按鈕 (包含按按鈕與點擊輸入框敲 Enter)
+                const autoScrollBtn2 = document.getElementById('custom-word-btn');
+                const autoScrollInput = document.getElementById('custom-word-input');
+
+                if (autoScrollBtn2) {
+                    autoScrollBtn2.addEventListener('click', () => {
+                        if (autoScrollInput && autoScrollInput.value.trim() !== '') {
+                            setTimeout(() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }, 50);
+                        }
+                    });
+                }
+                if (autoScrollInput) {
+                    autoScrollInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && autoScrollInput.value.trim() !== '') {
+                            setTimeout(() => {
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }, 50);
+                        }
+                    });
+                }
+
+                // 3. 全部刪除按鈕
+                const autoScrollBtn3 = document.getElementById('clear-all-btn');
+                if (autoScrollBtn3) {
+                    autoScrollBtn3.addEventListener('click', () => {
+                        // 這裡跟您原來的 alert/confirm 彈窗同步，只要按了確定就會執行
+                        setTimeout(() => {
+                            // 檢查當前畫布上是否被清空，如果清空了或使用者按了確認，就往上捲
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 100);
+                    });
+                }
+            });
+        </script>
     </body>
 
 </html>
