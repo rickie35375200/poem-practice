@@ -791,17 +791,20 @@
         <div class="control-container">
             <div class="custom-wrapper">
                 <input type="text" id="custom-word-input" class="custom-input" placeholder="✍️ 寫下自己的詞彙...">
-                <button id="custom-word-btn" class="custom-btn">加入</button>
+                <button id="custom-word-btn" class="custom-btn"
+                    onclick="setTimeout(() => { if(document.getElementById('custom-word-input').value.trim() !== '') { window.scrollTo({ top: 0, behavior: 'smooth' }); } }, 50);">加入</button>
             </div>
-            <button id="generate-poem-btn" class="ai-btn">🤖 靈感範例</button>
+            <button id="generate-poem-btn" class="ai-btn" onclick="window.scrollTo({ top: 0, behavior: 'smooth' });">🤖
+                靈感範例</button>
             <div class="search-wrapper">
                 <input type="text" id="word-search" class="search-input" placeholder="🔍 輸入關鍵字篩選...">
                 <button id="search-clear-btn" class="search-clear">✕</button>
             </div>
             <div id="trash-bin" class="trash-zone">🗑️ 拖曳或雙擊字卡刪除</div>
-            <button id="clear-all-btn" class="clear-all-btn">💥 全部刪除</button>
+            <button id="clear-all-btn" class="clear-all-btn"
+                onclick="setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 150);">💥 全部刪除</button>
         </div>
-
+        
         <div class="pool-container">
             <div class="main-category-block">
                 <div class="main-category-title">【大師意象】經典名家</div>
@@ -1431,54 +1434,6 @@
                 } catch (err) {
                     const errorMsg = document.getElementById('error-msg');
                     if (errorMsg) { errorMsg.style.display = 'block'; errorMsg.textContent = '錯誤: ' + err.message; }
-                }
-            });
-        </script>
-        <script>
-            document.addEventListener("DOMContentLoaded", () => {
-                // 1. 靈感範例按鈕
-                const autoScrollBtn1 = document.getElementById('generate-poem-btn');
-                if (autoScrollBtn1) {
-                    autoScrollBtn1.addEventListener('click', () => {
-                        setTimeout(() => {
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }, 50); // 延遲50毫秒，確保字卡產生後再滑順往上捲
-                    });
-                }
-
-                // 2. 寫下詞彙按鈕 (包含按按鈕與點擊輸入框敲 Enter)
-                const autoScrollBtn2 = document.getElementById('custom-word-btn');
-                const autoScrollInput = document.getElementById('custom-word-input');
-
-                if (autoScrollBtn2) {
-                    autoScrollBtn2.addEventListener('click', () => {
-                        if (autoScrollInput && autoScrollInput.value.trim() !== '') {
-                            setTimeout(() => {
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }, 50);
-                        }
-                    });
-                }
-                if (autoScrollInput) {
-                    autoScrollInput.addEventListener('keydown', (e) => {
-                        if (e.key === 'Enter' && autoScrollInput.value.trim() !== '') {
-                            setTimeout(() => {
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }, 50);
-                        }
-                    });
-                }
-
-                // 3. 全部刪除按鈕
-                const autoScrollBtn3 = document.getElementById('clear-all-btn');
-                if (autoScrollBtn3) {
-                    autoScrollBtn3.addEventListener('click', () => {
-                        // 這裡跟您原來的 alert/confirm 彈窗同步，只要按了確定就會執行
-                        setTimeout(() => {
-                            // 檢查當前畫布上是否被清空，如果清空了或使用者按了確認，就往上捲
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }, 100);
-                    });
                 }
             });
         </script>
