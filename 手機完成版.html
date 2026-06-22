@@ -1418,6 +1418,1464 @@
                             canvas.appendChild(clonedTile);
                             el = clonedTile;
                         }
+
+                        // 🔍 獲取畫布當前在手機或電腦上的實際渲染寬高
+                        const rect = canvas.getBoundingClientRect();
+
+                        // 🧮 終極邊界防護：強制讓字卡在放開時，不論如何都鎖定在畫布內部
+                        // 電腦版依舊精準，手機版則加上 15 像素的安全扣除，防止字卡被右側或下方切掉
+                        let maxSafeLeft = rect.width - (el.offsetWidth || 60) - 15;
+                        let maxSafeTop = rect.height - (el.offsetHeight || 30) - 15;
+
+                        // 如果計算出來變負數（手機太小），就強制歸零
+                        if (maxSafeLeft < 0) maxSafeLeft = 10;
+                        if (maxSafeTop < 0) maxSafeTop = 10;
+
+                        // 📌 實際寫入位置，強迫字卡彈回安全區
+                        el.style.left = Math.max(10, Math.min(left, maxSafeLeft)) + 'px';
+                        el.style.top = Math.max(10, Math.min(top, maxSafeTop)) + 'px';
+
+                        checkWatermark();
+                    });
+
+                    trashBin.addEventListener('dragover', (e) => { e.preventDefault(); trashBin.classList.add('drag-over'); });
+                    trashBin.addEventListener('dragleave', () => trashBin.classList.remove('drag-over'));
+                    trashBin.addEventListener('drop', (e) => {
+                        e.preventDefault(); trashBin.classList.remove('drag-over');
+                        const el = document.getElementById(e.dataTransfer.getData('text/plain'));
+                        if (el && el.classList.contains('placed-tile')) {
+                            el.remove();
+                            checkWatermark();
+                        }
+                    });
+                } catch (err) {
+                    const errorMsg = document.getElementById('error-msg');
+                    if (errorMsg) { errorMsg.style.display = 'block'; errorMsg.textContent = '錯誤: ' + err.message; }
+                }
+            });
+        </script>
+    </body>
+
+</html><!DOCTYPE html>
+<html lang="zh-TW">
+
+<>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詩句留言板 - 台灣現代詩拼貼實驗室</title>
+    <style>
+        body {
+            background-color: #f5f2eb;
+            font-family: "PMingLiU", "MingLiU", "New MingLiU", "新細明體", "Microsoft JhengHei", serif;
+            margin: 0;
+            padding: 30px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: #2c2c2c;
+            user-select: none;
+            -webkit-user-select: none;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            font-family: "PMingLiU", "MingLiU", "新細明體", serif;
+            font-weight: normal;
+            letter-spacing: 8px;
+            font-size: 1.9rem;
+            margin: 0 0 8px 0;
+            color: #222222;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #8a8273;
+            font-size: 0.88rem;
+            margin-bottom: 25px;
+            text-align: center;
+            line-height: 1.8;
+            letter-spacing: 1.5px;
+        }
+
+        .main-layout {
+            display: flex;
+            width: 95%;
+            max-width: 1400px;
+            height: 704px;
+            gap: 20px;
+            margin-bottom: 20px;
+            position: relative;
+            align-items: flex-start;
+        }
+
+        .canvas-container {
+            flex: 1;
+            height: 700px;
+            overflow: auto;
+            border: 2px solid #d3ccbc;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+            background: #ffffff;
+            border-radius: 4px;
+        }
+
+        #canvas {
+            width: 100%;
+            min-width: 900px;
+            height: 700px;
+            background: #ffffff;
+            position: relative;
+            transition: background-color 0.4s ease;
+        }
+
+        #canvas::before {
+            content: "「 在這裡，拼湊昨日留下的字句 」";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #9c9485;
+            font-size: 1.5rem;
+            pointer-events: none;
+            text-align: center;
+            width: 90%;
+            font-family: "PMingLiU", "MingLiU", "New MingLiU", "新細明體", serif;
+            letter-spacing: 14px;
+            white-space: nowrap;
+            display: flex;
+            justify-content: center;
+            opacity: 0.45;
+            transition: opacity 0.3s ease;
+        }
+
+        #canvas.has-tiles::before {
+            opacity: 0;
+        }
+
+        .style-sidebar {
+            width: 240px;
+            min-width: 240px;
+            flex-shrink: 0;
+            height: 700px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #d3ccbc;
+            border-radius: 4px;
+            padding: 18px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .style-sidebar.collapsed {
+            width: 0;
+            min-width: 0;
+            padding: 18px 0;
+            border: none;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+            margin-right: -20px;
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #d3ccbc;
+            padding-bottom: 8px;
+            margin: 0;
+        }
+
+        .sidebar-title {
+            font-size: 0.95rem;
+            font-weight: bold;
+            color: #4a443a;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+
+        .toggle-sidebar-btn {
+            background: none;
+            border: none;
+            color: #8a8273;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: "Microsoft JhengHei", sans-serif;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .toggle-sidebar-btn:hover {
+            background: #e6e0d4;
+            color: #222;
+        }
+
+        .float-open-btn {
+            display: none;
+            position: absolute;
+            right: -10px;
+            top: 15px;
+            background: #7a7365;
+            color: #fff;
+            border: 1px solid #d3ccbc;
+            border-radius: 4px 0 0 4px;
+            padding: 12px 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            box-shadow: -2px 4px 10px rgba(0, 0, 0, 0.1);
+            z-index: 90;
+            transition: all 0.2s;
+        }
+
+        .float-open-btn:hover {
+            background: #5a544a;
+        }
+
+        .style-sidebar.collapsed+.float-open-btn {
+            display: block;
+        }
+
+        .color-section {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .color-section-title {
+            font-size: 0.85rem;
+            color: #4a443a;
+            margin: 0;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .color-sub-label {
+            font-size: 0.75rem;
+            color: #9c9280;
+            margin: 2px 0 2px 0;
+            font-style: italic;
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        .color-btn {
+            border: 1px solid #c8c2b5;
+            border-radius: 4px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+            transition: all 0.2s;
+            background: #fff;
+            padding: 0 4px;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.03);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .color-btn.active {
+            border: 2px solid #222222;
+            box-shadow: inset 0 0 0 1px #fff;
+        }
+
+        .control-container {
+            width: 95%;
+            max-width: 1400px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+        }
+
+        .custom-wrapper {
+            display: flex;
+            align-items: center;
+            background: #ffffff;
+            border: 2px solid #5a6b5c;
+            border-radius: 8px;
+            padding: 0 12px;
+            box-shadow: 0 4px 15px rgba(90, 107, 92, 0.12);
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .custom-input {
+            border: none;
+            outline: none;
+            width: 160px;
+            font-size: 0.95rem;
+            color: #333333;
+            font-family: "Microsoft JhengHei", sans-serif;
+            background: transparent;
+            height: 100%;
+        }
+
+        .custom-input::placeholder {
+            color: #a3b0a5;
+            letter-spacing: 1px;
+        }
+
+        .custom-btn {
+            background: #5a6b5c;
+            border: none;
+            color: #ffffff;
+            border-radius: 4px;
+            padding: 0 12px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-family: "Microsoft JhengHei", sans-serif;
+            letter-spacing: 1px;
+            transition: background 0.2s;
+            height: 28px;
+            line-height: 28px;
+            display: inline-block;
+        }
+
+        .custom-btn:hover {
+            background: #425044;
+        }
+
+        .ai-btn {
+            background: #7c6a58;
+            border: 2px solid #7c6a58;
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-family: "Microsoft JhengHei", sans-serif;
+            letter-spacing: 1.5px;
+            box-shadow: 0 4px 15px rgba(124, 106, 88, 0.2);
+            transition: all 0.2s;
+            font-weight: bold;
+            height: 42px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ai-btn:hover {
+            background: #5f5042;
+            border-color: #5f5042;
+            transform: translateY(-1px);
+        }
+
+        .ai-btn:active {
+            transform: translateY(1px);
+        }
+
+        .search-wrapper {
+            display: flex;
+            align-items: center;
+            background: #ffffff;
+            border: 2px solid #7a7365;
+            border-radius: 8px;
+            padding: 0 14px;
+            width: 100%;
+            max-width: 320px;
+            box-shadow: 0 4px 15px rgba(122, 115, 101, 0.12);
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .search-input {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 0.95rem;
+            color: #333333;
+            font-family: "Microsoft JhengHei", sans-serif;
+            background: transparent;
+            height: 100%;
+        }
+
+        .search-input::placeholder {
+            color: #b5ae9f;
+            letter-spacing: 1px;
+        }
+
+        .search-clear {
+            background: none;
+            border: none;
+            color: #8a8273;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 0 0 0 10px;
+            display: none;
+            line-height: 1;
+        }
+
+        .search-clear:hover {
+            color: #222222;
+        }
+
+        .trash-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: #ffffff;
+            border: 2px dashed #8a8273;
+            border-radius: 8px;
+            padding: 0 20px;
+            font-family: "Microsoft JhengHei", sans-serif;
+            font-size: 0.95rem;
+            color: #666666;
+            cursor: default;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+            transition: all 0.2s ease;
+            height: 42px;
+            box-sizing: border-box;
+        }
+
+        .trash-zone.drag-over {
+            border-color: #d9534f;
+            background-color: #fff5f5;
+            color: #d9534f;
+            transform: scale(1.03);
+        }
+
+        .clear-all-btn {
+            background: #ffffff;
+            border: 2px solid #d9534f;
+            color: #d9534f;
+            border-radius: 8px;
+            padding: 0 20px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-family: "Microsoft JhengHei", sans-serif;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(217, 83, 79, 0.08);
+            transition: all 0.2s;
+            font-weight: bold;
+            height: 42px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .clear-all-btn:hover {
+            background: #d9534f;
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(217, 83, 79, 0.2);
+        }
+
+        .clear-all-btn:active {
+            transform: translateY(1px);
+        }
+
+        .pool-container {
+            width: 95%;
+            max-width: 1400px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        .main-category-block {
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid #d3ccbc;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01);
+        }
+
+        .main-category-title {
+            font-family: "PMingLiU", "MingLiU", "新細明體", serif;
+            font-size: 1.15rem;
+            color: #222;
+            font-weight: bold;
+            margin-bottom: 18px;
+            border-left: 5px solid #4a443a;
+            padding-left: 12px;
+            letter-spacing: 2px;
+        }
+
+        .sub-category-row {
+            display: flex;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed #e6e0d4;
+            padding-bottom: 12px;
+            align-items: flex-start;
+        }
+
+        .sub-category-row:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .sub-category-label {
+            width: 140px;
+            min-width: 140px;
+            font-family: "Microsoft JhengHei", sans-serif;
+            font-size: 0.85rem;
+            color: #7a7365;
+            font-weight: bold;
+            padding-top: 6px;
+            letter-spacing: 0.5px;
+            position: relative;
+        }
+
+        .sub-category-label span {
+            display: block;
+            font-size: 0.72rem;
+            color: #9c9485;
+            font-weight: normal;
+            margin-top: 2px;
+            letter-spacing: 0px;
+        }
+
+        .word-pool {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            text-align: left;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .word-pool::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .word-pool::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .word-pool::-webkit-scrollbar-thumb {
+            background: #dcd7ca;
+            border-radius: 3px;
+        }
+
+        .word-pool::-webkit-scrollbar-thumb:hover {
+            background: #b5ae9f;
+        }
+
+        .word-tile {
+            background: #ffffff;
+            padding: 5px 12px;
+            border: 1px solid #dcd7ca;
+            border-radius: 1px;
+            cursor: move;
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.03);
+            color: #333333;
+            font-family: "PMingLiU", "MingLiU", "新細明體", serif;
+            font-size: 0.95rem;
+            letter-spacing: 2px;
+            padding-left: 14px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .word-tile.dragging {
+            opacity: 0.4;
+        }
+
+        .placed-tile {
+            position: absolute;
+            background: #ffffff;
+            padding: 8px 18px;
+            border: 1px solid #4a443a;
+            box-shadow: 3px 5px 12px rgba(49, 44, 37, 0.32), 1px 2px 4px rgba(0, 0, 0, 0.18);
+            cursor: move;
+            z-index: 10;
+            color: #111111;
+            font-family: "PMingLiU", "MingLiU", "新細明體", serif;
+            font-size: 1.15rem;
+            letter-spacing: 2px;
+            padding-left: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            white-space: nowrap;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .placed-tile:hover {
+            box-shadow: 6px 12px 20px rgba(49, 44, 37, 0.42), 2px 4px 8px rgba(0, 0, 0, 0.22);
+            z-index: 12;
+        }
+
+        #error-msg {
+            color: #d9534f;
+            font-weight: bold;
+            margin: 20px;
+            display: none;
+            background: #fff5f5;
+            padding: 10px 20px;
+            border-radius: 4px;
+            border: 1px solid #d9534f;
+        }
+
+        /* ==========================================================================
+           📱 行動裝置與平板自動適配優化（當螢幕寬度小於 992px 時啟用）
+           ========================================================================== */
+        /* ==========================================================================
+           📱 行動裝置與平板自動適配終極加強版（寬度小於 992px 時啟用）
+           ========================================================================== */
+        @media screen and (max-width: 992px) {
+            body {
+                padding: 15px 5px !important;
+            }
+
+            h1 {
+                font-size: 1.4rem !important;
+                letter-spacing: 4px !important;
+            }
+
+            .subtitle {
+                font-size: 0.8rem !important;
+                margin-bottom: 15px !important;
+            }
+
+            /* 1. 垂直排列 */
+            .main-layout {
+                flex-direction: column !important;
+                height: auto !important;
+                width: 100% !important;
+                gap: 15px !important;
+            }
+
+            /* 2. 🧱 強制鎖死畫布容器尺寸，不允許任何子元素撐開它 */
+            .canvas-container {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 400px !important; /* 稍微縮小一點，更適合手機 */
+                overflow: hidden !important; /* 👈 絕對不允許滾動條出現 */
+                position: relative !important;
+                box-sizing: border-box !important;
+            }
+
+            /* 3. 解除 900px 限制，並鎖死寬高 */
+            #canvas {
+                min-width: 100% !important; 
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 400px !important;
+                overflow: hidden !important; /* 👈 雙重保險，把超出的字卡直接剪掉 */
+                position: relative !important;
+                box-sizing: border-box !important;
+            }
+
+            #canvas::before {
+                font-size: 0.9rem !important;
+                letter-spacing: 4px !important;
+                white-space: normal !important;
+                line-height: 1.4 !important;
+                width: 85% !important;
+            }
+
+            /* 4. 工具箱調整 */
+            .style-sidebar {
+                width: 100% !important;
+                min-width: 100% !important;
+                height: auto !important;
+                padding: 12px !important;
+                box-sizing: border-box !important;
+            }
+
+            .style-sidebar.collapsed {
+                display: none !important; 
+            }
+
+            /* 5. 🛠️ 解決「字卡間距沒變小」的核心：縮小字卡尺寸、字體、以及外邊距 */
+            .placed-tile, .word-tile {
+                font-size: 0.8rem !important;      /* 縮小字體 */
+                padding: 4px 6px !important;       /* 縮小字卡內部的留白 */
+                margin: 2px !important;            /* 👈 強制縮小字卡與字卡之間的外邊距 */
+                letter-spacing: 0px !important;    /* 縮小字距 */
+                line-height: 1.2 !important;
+                display: inline-block !important;
+            }
+
+            /* 6. 控制列每行兩個排好 */
+            .control-container {
+                width: 100% !important;
+                gap: 8px !important;
+            }
+
+            .custom-wrapper, .search-wrapper, .trash-zone, .clear-all-btn, .ai-btn {
+                flex: 1 1 calc(50% - 8px) !important;
+                min-width: 120px !important;
+                max-width: 100% !important;
+                height: 38px !important; /* 按鈕高度微縮 */
+            }
+
+            /* 7. 下方字詞池改為垂直分層，字卡緊密排列 */
+            .pool-container {
+                width: 100% !important;
+                gap: 12px !important;
+            }
+
+            .main-category-block {
+                padding: 10px !important;
+            }
+
+            .sub-category-row {
+                flex-direction: column !important;
+                gap: 6px !important;
+                padding-bottom: 6px !important;
+            }
+
+            .sub-category-label {
+                width: 100% !important;
+                min-width: 100% !important;
+                padding-top: 0 !important;
+                border-bottom: 1px solid #e6e0d4 !important;
+                padding-bottom: 2px !important;
+            }
+
+            /* 🛠️ 縮小字詞池字卡的間距與排列 */
+            .word-pool {
+                max-height: 140px !important;
+                gap: 4px !important; /* 👈 縮小下方字卡池的間距 */
+                padding: 4px 0 !important;
+            }
+        }
+    </style>
+    <!-- 引入手機觸控拖曳補丁，讓手指滑動能完美觸發電腦版的 drag 事件 -->
+    <script src="https://cdn.jsdelivr.net/npm/drag-drop-touch@1.3.0/DragDropTouch.js"></script>
+    </head>
+
+    <body>
+        <div id="error-msg">系統啟動失敗，請聯繫工程師。</div>
+        <h1>詩句留言板</h1>
+        <div class="subtitle">拾起經典名家與新生代詩人的語意碎片，或親手書寫下屬於你的私密語彙。<br>將字詞自由拖曳搬移至畫布中，在格線與留白之間，留下一首與靈魂共鳴的詩。</div>
+
+        <div class="main-layout">
+            <div class="canvas-container">
+                <div id="canvas"></div>
+            </div>
+
+            <div class="style-sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-title">🎨 視覺風格調色</h3>
+                    <button class="toggle-sidebar-btn" id="close-sidebar-btn" title="隱藏調色盤">✕ 收起</button>
+                </div>
+
+                <div class="color-section">
+                    <p class="color-section-title">🎞️ 畫布孤獨底色</p>
+                    <p class="color-sub-label">▫ 淺底文藝色</p>
+                    <div class="palette-grid" id="bg-palette-light">
+                        <button class="color-btn active" data-color="#ffffff"
+                            style="background: #ffffff; color: #111111; border-color: #4a443a;">時光褐底</button>
+                        <button class="color-btn" data-color="#e6ede7"
+                            style="background: #e6ede7; color: #2d4231; border-color: #7b9480;">初夏綠底</button>
+                        <button class="color-btn" data-color="#fcf7c5"
+                            style="background: #fcf7c5; color: #4a3e21; border-color: #aba15c;">落日黃底</button>
+                        <button class="color-btn" data-color="#e3ecf5"
+                            style="background: #e3ecf5; color: #213242; border-color: #7c92a6;">薄霧藍底</button>
+                    </div>
+                    <p class="color-sub-label">▪ 深底文藝色</p>
+                    <div class="palette-grid" id="bg-palette-dark">
+                        <button class="color-btn" data-color="#2b2b2b"
+                            style="background: #2b2b2b; color: #e0e0e0; border-color: #111111;">墨色沉底</button>
+                        <button class="color-btn" data-color="#354a3a"
+                            style="background: #354a3a; color: #f0f5f1; border-color: #1e2b21;">古董綠底</button>
+                        <button class="color-btn" data-color="#213247"
+                            style="background: #213247; color: #ebf2fa; border-color: #101a26;">午夜藍底</button>
+                        <button class="color-btn" data-color="#54262c"
+                            style="background: #54262c; color: #faebeb; border-color: #331216;">胭脂酒底</button>
+                    </div>
+                </div>
+
+                <div class="color-section">
+                    <p class="color-section-title">✍️ 拼貼字卡風格</p>
+                    <p class="color-sub-label">▫ 淺底深字系列</p>
+                    <div class="palette-grid" id="tile-palette-light">
+                        <button class="color-btn active" data-bg="#ffffff" data-text="#111111" data-border="#4a443a"
+                            style="background: #ffffff; color: #111111;">時光褐</button>
+                        <button class="color-btn" data-bg="#e6ede7" data-text="#2d4231" data-border="#7b9480"
+                            style="background: #e6ede7; color: #2d4231;">初夏綠</button>
+                        <button class="color-btn" data-bg="#fcf7c5" data-text="#4a3e21" data-border="#aba15c"
+                            style="background: #fcf7c5; color: #4a3e21;">落日黃</button>
+                        <button class="color-btn" data-bg="#e3ecf5" data-text="#213242" data-border="#7c92a6"
+                            style="background: #e3ecf5; color: #213242;">薄霧藍</button>
+                    </div>
+                    <p class="color-sub-label">▪ 深底淺字系列</p>
+                    <div class="palette-grid" id="tile-palette-dark">
+                        <button class="color-btn" data-bg="#2b2b2b" data-text="#e0e0e0" data-border="#111111"
+                            style="background: #2b2b2b; color: #e0e0e0;">墨色沉</button>
+                        <button class="color-btn" data-bg="#354a3a" data-text="#f0f5f1" data-border="#1e2b21"
+                            style="background: #354a3a; color: #f0f5f1;">古董綠</button>
+                        <button class="color-btn" data-bg="#213247" data-text="#ebf2fa" data-border="#101a26"
+                            style="background: #213247; color: #ebf2fa;">午夜藍</button>
+                        <button class="color-btn" data-bg="#54262c" data-text="#faebeb" data-border="#331216"
+                            style="background: #54262c; color: #faebeb;">胭脂酒</button>
+                    </div>
+                </div>
+            </div>
+            <button class="float-open-btn" id="open-sidebar-btn">🎨<br>風<br>格<br>調<br>色</button>
+        </div>
+
+        <div class="control-container">
+            <div class="custom-wrapper">
+                <input type="text" id="custom-word-input" class="custom-input" placeholder="✍️ 寫下自己的詞彙...">
+                <button id="custom-word-btn" class="custom-btn">加入</button>
+            </div>
+            <button id="generate-poem-btn" class="ai-btn">🤖 靈感範例</button>
+            <div class="search-wrapper">
+                <input type="text" id="word-search" class="search-input" placeholder="🔍 輸入關鍵字篩選...">
+                <button id="search-clear-btn" class="search-clear">✕</button>
+            </div>
+            <div id="trash-bin" class="trash-zone">🗑️ 拖曳或雙擊字卡刪除</div>
+            <button id="clear-all-btn" class="clear-all-btn">💥 全部刪除</button>
+        </div>
+
+        <div class="pool-container">
+            <div class="main-category-block">
+                <div class="main-category-title">【大師意象】經典名家</div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 名詞<span>時間、自然與古典意象</span></div>
+                    <div class="word-pool" id="pool-masters-noun"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 動詞與修飾詞<span>沉思、告別與精神狀態</span></div>
+                    <div class="word-pool" id="pool-masters-other"></div>
+                </div>
+            </div>
+
+            <div class="main-category-block">
+                <div class="main-category-title">【社群微光】現代與新生代詩人</div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 名詞<span>都會日常、物質與傷口</span></div>
+                    <div class="word-pool" id="pool-moderns-noun"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 動詞與邊緣感知<span>行為、科技與心理防線</span></div>
+                    <div class="word-pool" id="pool-moderns-other"></div>
+                </div>
+            </div>
+
+            <div class="main-category-block">
+                <div class="main-category-title">【通用核心動詞】</div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 動詞一<span>情感、相遇與尋覓</span></div>
+                    <div class="word-pool" id="pool-actions-v1"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 動詞二<span>破壞、抗拒與禁錮</span></div>
+                    <div class="word-pool" id="pool-actions-v2"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 動詞三<span>身體、存在與位移</span></div>
+                    <div class="word-pool" id="pool-actions-v3"></div>
+                </div>
+            </div>
+
+            <div class="main-category-block">
+                <div class="main-category-title">【修飾與狀態】</div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 形容詞<span>質地、色彩與情感定調</span></div>
+                    <div class="word-pool" id="pool-modifiers-adj"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 副詞<span>時間、頻率與強烈程度</span></div>
+                    <div class="word-pool" id="pool-modifiers-adv"></div>
+                </div>
+            </div>
+
+            <div class="main-category-block">
+                <div class="main-category-title">【文法連結鈕扣】</div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 代名詞<span>主體、客體與指代</span></div>
+                    <div class="word-pool" id="pool-grammar-pronoun"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 介詞、連詞與助詞<span>因果、假設與語氣連結</span></div>
+                    <div class="word-pool" id="pool-grammar-particles"></div>
+                </div>
+                <div class="sub-category-row">
+                    <div class="sub-category-label">✦ 標點與留白<span>語氣的中斷與呼吸</span></div>
+                    <div class="word-pool" id="pool-grammar-punctuation"></div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener("DOMContentLoaded", () => {
+                try {
+                    const wordCategories = {
+                        "pool-masters-noun": [
+                            "歲月", "時光", "年華", "韶華", "昨日", "青春", "命運", "宿命", "永恆", "頃刻", "季節", "寒冬", "初夏", "秋分", "春雷", "白雪", "黃昏", "黎明", "暮色", "白晝", "夜色", "記憶", "回憶", "遺落", "塵緣", "歌謠", "琴鍵", "琴弦", "風鈴", "手札", "信箋", "窗櫺", "雨絲", "煙雨", "青苔", "石階", "白雲", "星空", "月光", "宇宙", "塵埃", "深處", "山谷", "翠綠", "霧氣", "海洋", "波浪", "溪流", "彼岸", "港口", "燈塔", "長途", "足跡", "背影", "容顏", "側影", "倒影", "影子", "燈火", "玫瑰", "荊棘", "落葉", "蘆葦", "蝴蝶", "羽翼", "飛蛾", "飛鳥", "泥土", "篝火", "荒野", "琥珀", "珊瑚", "微茫", "清冽", "指紋", "裙擺", "誓言", "終點",
+                            "碑石", "迴廊", "鐘擺", "古籍", "墨跡", "殘卷", "信鴿", "風箏", "枯井", "沙漏", "落日", "朝霞", "煙硝", "孤舟", "斷崖", "古道", "驛站", "春蠶", "寒蟬", "秋蓬", "浪花", "漣漪", "浮萍", "荒冢", "灰燼", "幽谷", "峻嶺", "清泉", "峭壁", "暗礁", "晨曦", "晚禱", "鐘聲", "霧靄", "流螢", "極光", "星軌", "天涯", "海角", "桑田", "滄海", "幻影", "浮雲", "逝水", "春光", "殘陽", "霜雪", "流年", "琴聲", "瘞旅", "夢魘", "蝶衣", "風沙", "客棧", "渡口", "輕舟", "繁星", "弦月", "子夜", "松濤", "竹影", "翠微", "雲煙", "煙霞", "塵囂", "浮世", "繾綣", "斑駁", "斑痕", "淚痕", "墨寶", "苔痕", "瓦當", "雕欄", "朱戶", "落花", "殘紅", "新綠", "枯枝", "藤蔓", "冷月", "殘月", "曉星", "買王星", "彗星", "隕石", "星雲", "穹頂", "深淵", "谷底", "絕壁", "激流", "瀑布", "漩渦", "潮水", "海嘯", "蜃樓", "極夜", "白夜", "春帷", "紅豆", "相思", "剪影", "餘音", "羌笛", "胡馬", "燕子", "杜鵑", "寒鴉", "驚鴻", "孤雁", "靈魂", "心扉", "眼波", "衣角", "微塵", "芥子", "須彌", "菩提", "蓮華", "曇花", "彼岸花", "曼陀羅", "忘川", "奈何橋", "夢婆湯", "輪迴", "宿願", "因果", "前世", "今生"
+                        ],
+                        "pool-masters-other": [
+                            "夜行", "無悔", "眷戀", "低迴", "嘆息", "呢喃", "低語", "沉思", "漂泊", "開花", "盛開", "結果", "容許", "凝視", "消逝", "終究",
+                            "沉淪", "擺渡", "吟詠", "靜候", "追憶", "凝望", "告別", "遠颺", "沉睡", "甦醒", "低吟", "獨白", "對話", "祈禱", "沉沒", "漂流", "消融", "凋零", "枯萎", "盛放", "綻放", "交織", "重疊", "錯落", "蔓延", "交融", "沉澱", "飛昇", "墜落", "幻滅", "永駐", "停滯", "倒流", "穿梭", "銘刻", "烙印", "雕琢", "洗滌", "淨化", "超脫", "微醺", "沈醉", "驚醒", "迷失", "尋覓", "邂逅", "離散", "重逢", "相濡", "以沫", "相忘", "於江湖", "縹緲", "寂寥", "蒼茫", "冷冽", "炙熱", "溫潤", "坎坷", "雋永", "深邃", "浩瀚", "清幽", "孤高", "冷傲", "超然", "淡泊", "濃烈", "淒美", "壯麗", "磅礡", "婉約", "豪放", "凝重", "輕盈", "迷離", "朦朧", "虛無", "真實", "短暫", "刹那", "瞬間", "恆久", "綿長", "悠遠", "古老", "滄桑", "初生", "蛻變", "羽化", "涅槃", "歸隱", "出世", "入世", "流浪", "放逐", "謫仙", "狂放", "拘謹", "敬畏", "虔誠", "默哀", "悼念", "謳歌", "讚美", "詛咒", "反抗", "妥協", "順從", "掙扎", "解脫"
+                        ],
+                        "pool-moderns-noun": [
+                            "普通人", "平庸", "怪物", "安全感", "秘密", "傷口", "淤青", "結痂", "疤痕", "流血", "刀刃", "勒痕", "遺體", "零件", "失眠", "惡夢", "安眠藥", "雨水", "下雨的人", "黑夜", "眼淚", "污漬", "鏡子", "塵土", "灰塵", "廢墟", "殘骸", "碎屑", "安靜的灰燼", "煙縫", "齒痕", "餘生", "餘溫", "餘震", "日常", "日常構造", "生活的褶皺", "夾縫", "劃痕", "防腐", "保鮮期", "過期", "真空", "寄生", "宿主", "免疫", "發炎", "過敏", "結構", "暫停鍵", "摩擦力", "刻度", "對稱", "透明度", "柔軟的刺", "填充物", "仿製品", "遺憾", "奢侈", "收納", "取暖", "錯覺", "縫隙", "耳語", "沈默", "起點", "生存", "徒勞", "少年", "青春的側影", "海風", "沿海", "南方", "夏天", "汗水", "波光", "信件", "飛機雲", "車站", "站牌", "路燈", "屋頂", "單車", "球鞋", "地圖", "開學", "背包", "午後", "雷陣雨", "日記", "島嶼", "旅人", "孤獨的總和", "海浪", "行李", "季風", "潮汐", "對岸", "渡輪", "海岸線", "燈火闌珊", "指南針", "夜宿", "晨光", "異鄉", "舊照片", "明信片", "書桌", "墨水", "煙圈", "時差", "軌道", "錯身", "秘密經驗", "微觀宇宙", "魔術", "觀測", "黑色書頁", "占星", "符號", "儀式", "煉金", "密室", "文明", "孤獨的君王", "預言書", "星圖", "陰謀", "觀察者", "顯微鏡", "記憶的殘片", "封印", "迷霧", "黑曜石", "側臉", "私語", "幻象", "氣球", "飛離", "純潔的惡意", "童話", "旋轉木馬", "標本", "玻璃瓶", "小丑", "面具", "迷宮", "齒輪", "時鐘", "發條", "盲眼", "糖果", "玩偶", "廢棄樂園", "馬戲團", "毒藥", "預言", "搖籃", "泡沫", "幻覺", "永夜", "黑洞", "神明", "慈悲", "無常", "盲目", "光天化日", "地獄", "世界", "愛人",
+                            "藍芽", "螢幕", "動態", "訊息", "已讀", "草稿", "罐頭", "超商", "微波食品", "條碼", "發票", "快遞", "包裹", "便利貼", "百憂解", "菸蒂", "打火機", "指甲油", "耳機", "捷運", "車廂", "月台", "博愛座", "手把", "地下道", "斑馬線", "天橋", "紅綠燈", "監視器", "霓虹燈", "看板", "招牌", "小套房", "床墊", "枕頭", "被單", "百葉窗", "除濕機", "冷氣機", "水滴", "水龍頭", "水管", "鐵捲門", "防火巷", "水泥牆", "油漆", "壁紙", "插座", "充電線", "電池", "滑鼠", "鍵盤", "耳塞", "口罩", "酒精", "體溫計", "OK蹦", "針筒", "藥丸", "膠囊", "糖衣", "咳嗽藥水", "病例", "診斷書", "副作用", "後遺症", "戒斷症狀", "垃圾桶", "塑膠袋", "免洗筷", "馬克杯", "咖啡渣", "茶包", "煙灰缸", "鑰匙", "皮夾", "悠遊卡", "感應卡", "學生證", "合照", "舊情書", "密碼", "帳號", "頭貼", "封鎖", "黑名單", "動態時報", "按讚", "留言", "分享", "限時動態", "濾鏡", "修圖", "像素", "解析度", "螢幕截圖", "語音訊息", "未接來電", "鈴聲", "震動", "靜音模式", "飛航模式", "低電量", "斷網", "讀取中", "緩衝", "錯誤代碼", "雲端", "硬碟", "隨身碟", "光碟", "磁片", "打字機", "碳粉", "紙張", "原子筆", "修正帶", "剪刀", "美工刀", "膠帶", "訂書針", "迴紋針", "筆記本", "行事曆", "空白頁", "索引", "書籤", "字典", "教科書", "考卷", "分數", "名次", "履歷", "面試", "識別證", "打卡機", "辦公桌", "電腦椅", "公事包", "領帶", "高跟鞋", "皮鞋", "制服", "襯衫", "牛仔褲", "T恤", "連帽衫", "帆布鞋", "拖鞋", "睡衣", "襪子", "毛衣", "圍巾", "手套", "雨衣", "雨傘", "折傘", "雨鞋", "青蛙", "蝸牛", "蚯蚓", "流浪狗", "流浪貓", "麻雀", "鴿子", "烏鴉", "蟑螂", "螞蟻", "蚊子", "蒼蠅", "蜘蛛", "蜘蛛網", "塵蟎", "發霉", "黴菌", "鐵鏽", "雜草", "盆栽", "仙人掌", "多肉植物", "乾燥花", "昆蟲針", "福馬林", "培養皿", "試管", "量筒", "滴管", "天平", "砝碼", "地球儀", "望遠鏡", "透鏡", "稜鏡", "萬花筒", "凸透鏡", "凹透鏡", "平面鏡", "哈哈鏡", "透光率",
+                            "塑料花", "通訊軟體", "動態牆", "空白鍵", "限動", "壞天氣", "無菌室", "止痛劑", "邊緣人", "夜間巴士", "末班車", "雨衣的氣味", "老公寓", "霓虹碎屑", "安全帽", "路口", "單向街", "速食店", "過期麵包", "罐頭塔", "遺照", "黑膠唱片", "二手書店", "百憂解包裝", "便利貼牆", "感熱紙", "空白收據", "發票箱", "破碎魚缸", "積水", "倒影中的臉", "地下鐵", "單軌電車", "鐵絲網", "防空洞", "破衣服", "防彈衣", "灰斑", "塑膠袋風箏", "舊吉他", "生鏽弦", "玻璃碎片", "指甲剪", "打卡單", "計程車表", "安全氣囊", "柏油路", "菸灰", "空藥罐", "過期咖啡", "水槽", "水漬", "黃色雨衣", "紅氣球", "電子菸", "破碎濾鏡", "過曝照片", "馬賽克", "壞掉的燈管", "雜訊", "高壓電線", "老舊收音機", "白噪音", "死機畫面", "藍屏", "冷氣漏水", "便利商店", "茶葉蛋", "過期雜誌", "老時鐘", "發條青蛙", "生鏽剪刀", "破雨傘", "舊名名片", "通訊錄", "被封鎖的人", "陌生來電", "罐頭訊息", "草稿夾", "未寄出的信", "垃圾郵件", "刪除鍵", "暫存檔", "壞軌", "雲端硬碟", "指紋解鎖", "貓罐頭", "流浪動物", "流浪的小孩", "夜市", "小鋼珠", "夾娃娃機", "扭蛋殼", "破紙箱", "防防堤", "消波塊", "沿海公路", "黑夜公路", "暴風雨", "人工降雨"
+                        ],
+                        "pool-moderns-other": [
+                            "討厭", "討厭自己", "自卑", "恐懼", "寂寞", "孤單", "脆弱", "自毀", "尖銳", "壞掉", "原諒", "原諒自己", "不勇敢", "病態", "求救", "討好", "不稱職", "依賴", "遺忘", "卑微", "自私", "絕望", "瘋狂", "偏執", "痛感", "痛局", "痛楚", "割捨", "窒息", "摧毀", "墜毀", "崩塌", "崩壞", "重擊", "破綻", "防線", "妥協", "拉扯", "對質", "對峙", "隔閡", "欺騙", "背叛者", "拋棄", "拋棄我", "生鏽", "廢棄", "撐傘", "天亮", "清晨", "潮濕", "溺水", "倒帶", "靜音", "隱形", "溫柔", "溫慢的傷口", "等候", "無防備", "安記", "退讓", "小心翼翼", "深陷", "囚禁", "枯萎", "溫熱", "冰冷", "無傷", "共生", "晴朗", "慢跑", "遠行", "漫遊", "錯身",
+                            "不回", "封鎖", "刪除", "下載", "上傳", "重新整理", "當機", "閃退", "登出", "登入", "註冊", "驗證", "搜尋", "點擊", "追蹤", "退追", "按讚", "退讚", "截圖", "錄音", "通話", "掛斷", "震動", "充電", "耗電", "斷電", "關機", "開機", "重設", "備份", "同步", "失效", "中毒", "解毒", "加密", "解密", "格式化", "還原", "修復", "偵測", "發炎", "過敏", "發燒", "咳嗽", "流鼻水", "打噴嚏", "頭痛", "胃痛", "心悸", "失眠", "嗜睡", "多夢", "驚醒", "盜汗", "暈眩", "中暑", "感冒", "確診", "隔離", "篩檢", "注射", "服藥", "塗藥", "換藥", "拆線", "結痂", "脫皮", "流血", "黑青", "紅腫", "化膿", "潰爛", "發霉", "生鏽", "腐爛", "風化", "碳化", "液化", "氣化", "固化", "昇華", "凝華", "溶解", "飽和", "稀釋", "濃縮", "結晶", "過濾", "沉澱", "離心", "蒸餾", "萃取", "合成", "分解", "燃燒", "爆炸", "熄滅", "冷卻", "加熱", "保溫", "冷凍", "冷藏", "解凍", "烘乾", "晾乾", "風乾", "曬乾", "受潮", "發酵", "變質", "變色", "褪色", "染色", "漂白", "去汙", "洗滌", "沖刷", "浸泡", "揉搓", "擰乾", "摺疊", "收納", "堆疊", "平鋪", "懸掛", "張貼", "撕毀", "剪碎", "拼接", "黏貼", "釘住", "綁緊", "鬆綁", "解開", "扣上", "拉開", "合上", "開啟", "關閉", "鎖上", "解鎖", "旋轉", "按壓", "推拉", "搖晃", "碰撞", "摩擦", "刮傷", "擦拭", "清洗", "消毒", "打掃除", "整理", "清除", "遺棄", "拾獲", "物歸原主",
+                            "被已讀", "偽裝", "熬夜", "假裝快樂", "哭不出聲", "保持沈默", "拒絕長大", "格式化記憶", "自我封鎖", "被動收納", "習慣受傷", "低頭看路", "假裝沒看見", "按讚自嘲", "退追蹤", "悄悄離開", "倒數寂寞", "點燃寂寞", "過度依賴", "過度防衛", "冷眼旁觀", "選擇性遺忘", "痛定思痛", "屏住呼吸", "忍住眼淚", "徹底壞掉", "拒絕安慰", "被世界遺棄", "尋求交集", "製造摩擦", "退回原點", "被迫營業", "持續發炎", "習慣黑暗", "畏光", "渴望透明", "自我消耗", "極度空虛", "漫無目的地", "反覆確認", "點亮螢幕", "劃破夜空", "原地踏步", "自作自受", "自得其樂", "渴望擁抱", "拒絕長途", "拒絕煽情", "保持距離", "冷處理", "熱暴力", "情緒勒索", "冷漠回應", "習慣性逃避", "假裝清醒", "沉迷幻覺", "半夢半醒", "原地解散", "悄悄蒸發", "被生活摩擦"
+                        ],
+                        "pool-actions-v1": [
+                            "遇見", "錯過", "等待", "等候", "愛過", "親吻", "擁抱", "傾聽", "治癒", "撫平", "原諒", "接受", "期盼", "允許", "呼喊", "道別", "離去", "流浪", "忘記", "記得", "隱瞞", "隱藏", "閃躲", "直視", "凝視", "傾心", "愛慕", "追求", "告白", "拒關", "答應", "牽手", "依偎", "凝望", "注視", "偷看", "暗戀", "思念", "懷念", "想念", "渴望", "奢望", "盼望", "期望", "祝願", "祝福", "祈求", "挽留", "留住", "放手", "捨棄", "放棄", "成全", "背叛", "欺騙", "坦白", "承認", "否認", "懷疑", "信任", "體貼", "關心", "照顧", "呵護", "陪伴", "相伴", "守候", "期待", "迎接", "歡送", "離別", "永別", "訣別", "重逢", "相聚", "聚會", "見面", "約會", "邂逅", "相遇", "巧遇", "偶遇", "碰見", "撞見", "看見", "瞧見", "望見", "發現", "察決", "感到", "感覺", "覺得", "體會", "體驗", "領悟", "明白", "理解", "懂得", "知曉", "了解", "熟悉", "認識", "結識", "交友", "談心", "訴苦", "傾訴", "聆聽", "聽見", "聞到", "觸摸", "包容", "體諒"
+                        ],
+                        "pool-actions-v2": [
+                            "背叛", "拒絕", "抗拒", "逃跑", "指認", "暴露", "撕裂", "撕扯", "粉碎", "摧毀", "毀壞", "瓦解", "崩塌", "燃燒", "灼傷", "吞噬", "熄滅", "融化", "蒸發", "滲透", "冷卻", "沸騰", "凝固", "挖掘", "掩埋", "丟棄", "釋放", "反抗", "鬥爭", "打擊", "報復", "傷害", "刺傷", "砍傷", "擊碎", "打破", "打碎", "撕毀", "割裂", "切斷", "斬斷", "阻斷", "封鎖", "禁錮", "囚禁", "束縛", "綑綁", "壓迫", "剝削", "掠奪", "侵佔", "強奪", "偷竊", "搶劫", "欺詐", "詛咒", "謾罵", "指責", "批評", "控訴", "審判", "懲罰", "處決", "處死", "消滅", "抹殺", "清除", "洗腦", "控制", "操縱", "支配", "奴役", "折磨", "虐待", "羞辱", "嘲笑", "譏諷", "冷落", "忽視", "遺棄", "拋棄", "背棄", "放逐", "驅逐", "趕走", "逼迫", "強迫", "命令", "禁止", "限制", "剝奪", "取消", "廢除", "終止", "中斷", "破壞", "踐踏", "侮辱", "玷污", "褻瀆", "出賣", "告密", "誣陷", "栽贓", "陷害"
+                        ],
+                        "pool-actions-v3": [
+                            "呼吸", "行走", "奔跑", "慢跑", "墜落", "飛翔", "降落", "沉淪", "暈眩", "顫抖", "麻木", "哭泣", "大笑", "微笑", "醒來", "睡去", "靜止", "停滯", "摩擦", "拍打", "敲擊", "撫摸", "盛裝", "傾倒", "折疊", "展開", "遺留", "拾起", "擦拭", "塗抹", "雕刻", "修補", "修復", "重塑", "穿越", "跨越", "阻擋", "臣服", "收緊", "倒數", "歸零", "重來", "佇立", "坐下", "躺下", "趴著", "蹲著", "跪著", "蜷縮", "側臥", "仰臥", "倒立", "懸掛", "漂浮", "游泳", "潛水", "滑行", "跳躍", "攀爬", "穿過", "繞過", "躲避", "閃藏", "隱藏", "潛伏", "埋伏", "凍結", "封存", "保留", "維持", "保持", "延續", "繼承", "傳承", "發揚", "光大", "展示", "呈現", "顯現", "暴露", "顯露", "隱蔽", "遮掩", "遮蓋", "覆蓋", "包裹", "纏繞", "捆紮", "系緊", "鬆開", "解開", "脫下", "穿上", "戴上", "摘下", "拿著", "握著", "提著", "背著", "扛著", "抱著", "摟著", "推著", "拉著", "拖著", "拽著", "牽著", "引導", "帶領", "跟隨", "追隨", "追趕", "追捕", "逃避", "逃離"
+                        ],
+                        "pool-modifiers-adj": [
+                            "溫柔的", "潮濕的", "透明的", "寂靜的", "殘酷的", "冰冷的", "滾熱的", "粗糙", "光滑", "柔軟", "堅硬", "乾淨", "骯髒", "龐大", "渺小", "沉重", "輕盈", "模糊", "清晰", "陌生", "熟悉", "遙遠", "貼近", "秘密", "公開", "暴烈", "悲傷", "寂寞", "快樂", "虛無", "絕望", "充滿希望", "孤獨的", "瘋狂的", "病態的", "尖銳的", "溫熱的", "乾燥的", "明亮的", "陰暗的", "漆黑的", "慘白的", "猩紅的", "湛藍的", "翠綠的", "金黃的", "銀白的", "斑駁的", "陳舊的", "嶄新的", "古老的", "現代的", "未來的", "過去的", "短暫的", "漫長的", "永恆的", "頃刻的", "瞬間的", "必然的", "偶然的", "絕對的", "相對的", "真實的", "虛幻的", "抽象的", "具體的", "複雜的", "簡單的", "深奧的", "淺顯的", "沉悶的", "活潑的", "喧鬧的", "安靜的", "死寂的", "荒涼的", "繁華的", "偏僻的", "熱鬧的", "冷清的", "幸福的", "痛苦的", "甜蜜的", "苦澀的", "辛辣的", "酸楚的", "鹹澀的", "淡雅的", "濃烈的", "芬芳的", "惡臭的", "刺鼻的", "舒適的", "難受的", "尷尬的", "羞澀的", "驕傲的", "自卑的", "自信的", "迷茫的", "堅定的", "動搖的", "猶豫的", "果斷的", "殘忍的", "善良的", "邪惡的", "正義的", "虛偽的", "真誠的", "冷漠的", "熱情的", "自私的", "大方的", "貪婪的", "知足的"
+                        ],
+                        "pool-modifiers-adv": [
+                            "正在", "曾經", "以後", "現在", "明天", "這裡", "遠方", "深處", "夜裡", "偶然", "突然", "悄悄", "緩緩", "從未", "總是", "不斷", "偶爾", "通常", "永遠", "暫時", "立刻", "極其", "依然", "那樣", "終究", "或許", "真的", "拼命", "刻意", "無端", "徹底", "稍微", "格外", "無比", "比較", "非常", "簡直", "好不容易", "一不小心", "悄悄地", "慢慢地", "瘋狂地", "安靜地", "無情地", "死心榻地", "一如既往", "不知不覺", "不由自主", "無能為力", "心甘情願", "理所當然", "如果", "這就是", "關於", "突然間", "頃刻間", "剎那間", "轉眼間", "久久地", "默默地", "靜靜地", "偷偷地", "暗暗地", "偏偏", "剛好", "恰恰", "好在", "幸虧", "明明", "難道", "莫非", "也許", "大概", "可能", "必定", "必然", "肯定", "絕對", "必須", "不得不", "只好", "只能", "照樣", "依舊", "仍然", "還是", "甚至", "乃至", "尤其", "特別", "更加", "越發", "略微", "絲毫", "幾乎", "差不多", "大約", "左右", "前後", "經常", "常常", "屢次", "一再", "再度", "重新", "早已", "早就在", "初次", "首次", "最後", "最終", "終於", "總算", "畢竟", "歸根結底", "其實", "本來", "原來", "根本", "完全", "全部", "統統", "一起", "一同", "一塊兒", "獨自", "單獨", "親自", "互相", "相互", "交替", "輪流", "連續", "陸續", "紛紛", "爭先恐後", "接二連三"
+                        ],
+                        "pool-grammar-pronoun": [
+                            "是", "不是", "是不是", "也是", "我", "你", "他", "她", "牠", "它", "我們", "你們", "他們", "她們", "自己", "誰", "什麼", "人家", "我的", "你的", "他的", "她的", "其", "之", "此", "這", "那", "各", "每", "某", "本", "該", "自身", "親自", "彼此", "雙方", "大家", "眾人", "各人", "哪", "哪兒", "哪裡", "幾", "多少", "怎麼", "怎麼樣", "怎樣", "如何", "為何", "為什麼", "孰", "何", "安", "焉", "其誰", "誰人", "何人", "何物", "何事", "何地", "何時", "某人", "某物", "某些", "有些", "那些", "這些", "那兒", "這兒", "此地", "彼處", "我等", "爾等", "彼等", "吾", "汝", "予", "余", "乃", "顧", "全體", "全部", "所有", "一切", "萬物", "凡"
+                        ],
+                        "pool-grammar-particles": [
+                            "因為", "所以", "擺擺", "但是", "可是", "不過", "而且", "開始", "然而", "或是", "以及", "即使", "就算", "雖然", "否則", "與其說", "不如說", "如果是", "關於", "為了", "除了", "有些", "那些", "這個", "那個", "那樣的", "這樣的", "不管是", "甚至是", "的", "了", "著", "過", "在", "把", "被", "讓", "與", "和", "向", "從", "到", "以", "對", "阿", "吧", "啦", "嘛", "呢", "哇", "喔", "呀", "哈", "咩", "哦", "的啊", "了啦", "著呢", "吧啦", "我說", "你想", "本來", "其實", "反正", "到底", "大概", "絕對", "並且", "或者", "乃至", "甚至於", "以至於", "從而", "進而", "進一步", "開此", "開此", "開此", "開此", "開此", "開此", "開此", "因此", "因而", "之所以", "是因為", "既然", "那麼", "只要", "就", "只有", "才", "除非", "不論", "都", "管", "總", "儘管", "還是", "固然", "每當", "一...就", "一邊...一邊", "與其...不如", "寧可...也不", "既...又", "不僅...而且", "雖然...但是", "儘管...可是", "如果...就", "要是...那", "即使...也", "哪怕...也", "就算...也", "正如", "如同", "好比", "彷彿", "像是", "基於", "鑑於", "由於", "沿著", "順著", "朝著", "向著", "對著", "背著", "當著", "朝", "向", "往", "自", "由", "打", "自從", "直到", "在...之中", "在...之下", "在...線上", "對於", "至於", "同", "跟", "及", "跟著", "隨著"
+                        ],
+                        "pool-grammar-punctuation": [
+                            "，", "。", "？", "！", "——", "……", "「", "」", "、", "：", "；", "（", "）", " ", " ",
+                            "『", "』", "《", "》", "〈", "〉", "〔", "〕", "【", "】", "──", "～", "★", "✦", "✧"
+                        ]
+                    };
+
+                    const canvas = document.getElementById('canvas');
+                    const trashBin = document.getElementById('trash-bin');
+                    const clearAllBtn = document.getElementById('clear-all-btn');
+                    const sidebar = document.getElementById('sidebar');
+                    const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+                    const openSidebarBtn = document.getElementById('open-sidebar-btn');
+
+                    let cloneCounter = 0;
+                    let scrollInterval = null;
+                    let currentTileStyle = { bg: "#ffffff", text: "#111111", border: "#4a443a" };
+
+                    // 📜 100首純正手寫獨立範例詩句（涵蓋簡單到難、4~6行、不同風格與情緒）
+                    const samplePoems = [
+                        // 1-10: 憂鬱/孤獨/日常/簡單
+                        [["昨日", "的", "記憶"], ["是一場", "潮濕的", "雷陣雨"], ["我", "在", "捷運", "的", "月台", "等候"], ["任由", "寂寞", "悄悄", "蔓延", "……"]],
+                        [["在", "生活的褶皺", "裡"], ["日常", "被", "格式化", "成", "平庸", "的", "碎片"], ["我", "戴上", "藍芽", "耳機", "，", "低語"], ["這就是", "永恆", "的", "孤獨"]],
+                        [["你", "已讀", "了", "我", "的", "靈魂"], ["卻", "封鎖", "了", "明天", "的", "可能性"], ["在", "空白鍵", "與", "沈默", "之間"], ["痛楚", "正在", "悄悄", "下載"]],
+                        [["下雨的人", "撐著", "破雨傘"], ["在", "紅綠燈", "路口", "佇立"], ["忘記", "了", "起點"], ["也", "找不到", "終點"]],
+                        [["普通人", "的", "失眠"], ["是", "安眠藥", "無法", "治癒", "的", "發炎"], ["黑夜", "太", "沉重"], ["我", "被", "日常", "摩擦", "到", "流血"]],
+                        [["便利商店", "的", "茶葉蛋"], ["冒著", "過期", "的", "日常構造"], ["我", "一口", "吞下"], ["吞下", "所有", "平庸", "的", "秘密"]],
+                        [["我", "習慣了", "受傷"], ["把", "淤青", "當作", "夏天的", "紋身"], ["不回", "訊息", "的", "你"], ["是", "我", "最深", "的", "防線"]],
+                        [["把", "所有", "秘密", "塞進", "塑膠袋"], ["任由", "它", "像", "氣球", "一樣", "飛離"], ["這座", "老公寓", "的", "屋頂"], ["只剩下", "冷氣漏水", "的", "白噪音"]],
+                        [["捷運", "車廂", "裡", "的", "側臉"], ["每個人", "都", "保持距離"], ["已讀", "的", "藍色", "微光"], ["是", "都會", "最孤獨的", "總和"]],
+                        [["草稿夾", "裡", "的", "未寄出的信"], ["已經", "發霉", "生鏽"], ["關於", "原諒自己"], ["我", "依然", "學不會", "勇敢"]],
+
+                        // 11-20: 現代/社群/銳利/中等難度
+                        [["你", "用", "冷暴力", "將", "我", "格式化"], ["動態牆", "上", "都是", "偽裝", "的", "快樂"], ["已讀", "是", "一柄", "透明的", "刀刃"], ["悄悄", "割開", "生活的褶皺"]],
+                        [["我們", "都是", "壞掉", "的", "零件"], ["被", "隨意", "丟棄", "在", "日常", "的", "廢墟"], ["假裝快樂", "地", "摩擦", "、", "重擊"], ["直到", "痛感", "歸零"]],
+                        [["按讚", "是一種", "自我自嘲", "的", "儀式"], ["在", "限時動態", "的", "過曝照片", "裡"], ["我們", "販賣", "寂寞"], ["用", "低電量", "的", "安全感", "取暖"]],
+                        [["藍屏", "是", "大腦", "暫停鍵", "的", "暴露"], ["空白鍵", "砸下", "，", "哭不出聲"], ["百憂解", "包裝", "被", "剪碎"], ["這就是", "普通人", "的", "安全感"]],
+                        [["你", "封鎖", "了", "沿海公路"], ["我", "卻", "在", "黑夜公路", "上", "慢跑"], ["耳機", "裡", "是", "死機畫面", "的", "雜訊"], ["我們", "在", "時差", "裡", "徹底壞掉"]],
+                        [["過期", "的", "罐頭"], ["寄生", "在", "小套房", "的", "冰箱", "深處"], ["就像", "我", "對", "你", "過度依賴", "的", "後遺症"], ["持續發炎", "，", "拒絕長大"]],
+                        [["陌生來電", "震動", "了", "深夜"], ["那是一場", "無菌室", "裡", "的", "暴風雨"], ["我", "保持沈默"], ["拒絕", "下載", "任何", "安慰"]],
+                        [["把", "回憶", "當作", "垃圾郵件", "刪除"], ["雲端硬碟", "卻", "偷偷", "備份", "了", "齒痕"], ["生活", "不過是", "一場", "無端的", "重擊"], ["結痂", "之後", "，", "繼續", "平庸"]],
+                        [["你在", "動態時報", "上", "悄悄離開"], ["留下", "一條", "破碎魚缸", "的", "劃痕"], ["我", "在", "地下鐵", "的", "夾縫", "裡"], ["反覆確認", "，", "直到", "天亮"]],
+                        [["電子菸", "吐出", "的", "不是", "煙圈"], ["是", "邊緣人", "渴望透明", "的", "幻覺"], ["在", "超商", "的", "霓虹碎屑", "下"], ["我們", "原地解散"]],
+
+                        // 21-30: 古典/大師意象/雋永/高難度
+                        [["歲月", "是", "一條", "不發聲", "的", "河流"], ["你", "在", "彼岸", "靜候", "落日"], ["而", "我", "是一葉", "遺落", "的", "孤舟"], ["終究", "沉沒", "在", "暮色", "深處"]],
+                        [["命運", "的", "鐘擺", "沉重", "低迴"], ["刻下", "了", "容顏", "上", "斑駁", "的", "指紋"], ["青苔", "爬滿", "昨日", "的", "石階"], ["這是一場", "永恆", "的", "告別"]],
+                        [["在", "宇宙", "的", "穹頂", "之下"], ["星軌", "交織", "成", "寂寥", "的", "古籍"], ["我們", "是", "微塵", "，", "亦是", "須彌"], ["頃刻間", "，", "羽化", "成", "灰燼"]],
+                        [["冷月", "照亮", "了", "斷崖", "上", "的", "枯枝"], ["杜鵑", "啼血", "，", "餘音", "低吟"], ["你", "的", "誓言", "寫在", "殘卷", "之上"], ["經不起", "流年", "的", "一次", "風沙"]],
+                        [["浮生", "繾綣", "，", "不過是", "一場", "夢魘"], ["我", "在", "客棧", "的", "窗櫺", "下", "聽", "煙雨"], ["把", "相思", "釀成", "胭脂酒"], ["沈醉", "在", "前世今生", "的", "因果", "裡"]],
+                        [["孤雁", "穿越", "了", "滄海桑田"], ["將", "背影", "留給", "蒼茫", "的", "朝霞"], ["那一首", "歌謠", "已", "斑駁", "不堪"], ["我們", "卻", "在", "渡口", "相忘於江湖"]],
+                        [["琴弦", "斷了", "，", "餘音", "仍在", "低迴"], ["手札", "裡", "夾著", "一朵", "凋零", "的", "玫瑰"], ["時光", "韶華", "，", "任由", "它", "枯萎"], ["這是", "一場", "虔誠", "的", "晚禱"]],
+                        [["流年", "似水", "，", "不可", "倒流"], ["我", "在", "荒野", "中", "點燃", "最後的", "篝火"], ["靜候", "黎明", "前", "最清冽", "的", "寒冬"], ["靈魂", "，", "終將", "超脫"]],
+                        [["蝶衣", "化作", "了", "煙硝", "中的", "幻影"], ["在", "忘川", "河畔", "，", "看", "彼岸花", "盛開"], ["你", "指尖", "殘留", "的", "墨跡"], ["是", "命運", "最孤高", "的", "銘刻"]],
+                        [["沙漏", "無聲", "，", "漏盡", "了", "青春"], ["我們", "在", "古道", "的", "驛站", "錯身"], ["暮色", "清幽", "，", "鐘聲", "悠遠"], ["此生", "，", "只是一場", "縹緲", "的", "夜行"]],
+
+                        // 31-40: 輕快/治癒/溫柔
+                        [["海風", "吹過", "初夏", "的", "沿海公路"], ["遇見", "你", "是", "晴朗", "的", "魔術"], ["手牽手", "在", "星空", "下", "奔跑"], ["世界", "突然", "變得", "無比", "溫柔的"]],
+                        [["單車", "後座", "夾著", "夏天的", "微風"], ["飛機雲", "在", "天空", "劃出", "期待"], ["你", "的", "微笑", "，", "擦拭", "了", "日常", "的", "沉重"], ["我們", "一不小心", "，", "就", "永遠", "了"]],
+                        [["明信片", "寄給", "遠方", "的", "南方"], ["島嶼", "上", "開滿了", "翠綠", "的", "多肉植物"], ["陽光", "很", "乾淨", "，", "記憶", "很", "透明"], ["陪伴", "，", "是最溫暖", "的", "日常"]],
+                        [["打開", "收納", "青春", "的", "筆記本"], ["裡面", "貼滿了", "球鞋", "與", "午後雷陣雨"], ["你", "用", "原子筆", "寫下", "的", "秘密"], ["治癒", "了", "長途", "的", "疲憊"]],
+                        [["水龍頭", "滴落", "陽光", "的", "碎屑"], ["貓罐頭", "旁", "，", "流浪貓", "正在", "甦醒"], ["生活的褶皺", "被", "晨光", "撫平"], ["今天", "也是", "值得", "期盼", "的"]],
+                        [["在", "二手書店", "的", "角落"], ["黑膠唱片", "旋轉出", "溫潤", "的", "歌謠"], ["我和你", "，", "偶然", "邂逅"], ["就像", "一首", "恰恰", "剛好", "的", "詩"]],
+                        [["帆布鞋", "踩過", "下雨的", "斑馬線"], ["折傘", "下", "有", "我們", "擁抱", "的", "餘溫"], ["世界", "雖然", "喧鬧"], ["但", "你", "是", "我", "唯一的", "無菌室"]],
+                        [["把", "悲傷", "格式化", "，", "重新下載", "晴朗"], ["手把", "緊握", "，", "捷運", "正開往", "夏天"], ["下一站", "，", "重逢"], ["你", "在", "月台", "，", "抱著", "乾燥花"]],
+                        [["月光", "灑在", "書桌", "的", "空白頁"], ["鋼筆", "流淌出", "溫熱", "的", "字句"], ["關於", "明天"], ["我們", "都有", "被愛", "的", "安全感"]],
+                        [["風鈴", "在", "百葉窗", "前", "呢喃"], ["每一聲", "，", "都是", "想念", "的", "刻度"], ["允許", "自己", "慢下來"], ["日常", "，", "也可以是一場", "漫遊"]],
+
+                        // 41-50: 激烈/暴烈/自毀/痛感
+                        [["討厭自己", "的", "平庸", "與", "不勇敢"], ["你", "用", "熱暴力", "瓦解", "了", "防線"], ["格式化", "所有", "過期", "的", "誓言"], ["垃圾桶", "裝滿了", "生活的碎屑"], ["崩壞", "之後", "，", "各自", "流浪"]],
+                        [["刀刃", "劃破", "了", "偽裝", "的", "防線"], ["淤青", "在", "水泥牆", "上", "摩擦"], ["你", "的", "欺騙", "，", "是一場", "精準", "的", "摧毀"], ["血液", "，", "在", "夜裡", "沸騰"]],
+                        [["勒痕", "深陷", "進", "記憶", "的", "零件"], ["惡夢", "是", "無法", "關機", "的", "當機"], ["我", "在", "廢墟", "中", "咆哮"], ["詛咒", "這場", "盲目", "的", "宿命"]],
+                        [["把", "愛人", "做成", "昆蟲針", "的", "標本"], ["封存", "在", "福馬林", "的", "冷冽", "裡"], ["拒絕", "你", "的", "消逝"], ["這就是", "我", "偏執的", "溫柔"]],
+                        [["菸蒂", "燙傷了", "已讀", "的", "螢幕"], ["垃圾袋", "裡", "裝著", "破碎魚缸", "的", "屍體"], ["我們", "拉扯", "、", "對質"], ["直到", "把", "彼此", "都", "變成", "怪物"]],
+                        [["窒息", "感", "從", "充電線", "蔓延"], ["你", "是", "一劑", "帶毒", "的", "止痛劑"], ["自我消耗", "，", "直到", "心悸"], ["這場", "自毀", "，", "我", "心甘情願"]],
+                        [["暴風雨", "撕裂了", "黃色雨衣"], ["消波塊", "在", "沿海", "承受", "重擊"], ["我", "在", "黑夜公路", "上", "墜毀"], ["沒有", "安全氣囊", "，", "只有", "絕望"]],
+                        [["已讀不回", "是", "一場", "蓄意", "的", "抹殺"], ["我", "在", "地下道", "被", "沈默", "囚禁"], ["齒痕", "仍在", "，", "靈魂", "已死"], ["這座", "城市", "是一具", "龐大的", "遺體"]],
+                        [["打火機", "點燃了", "舊情書"], ["灰塵", "與", "灰燼", "在", "房間", "飛昇"], ["你", "的", "背叛者", "標籤"], ["是我", "永不", "原諒", "的", "疤痕"]],
+                        [["把", "心扉", "當作", "防火巷", "封鎖"], ["拒絕", "任何", "光源", "的", "滲透"], ["我", "在", "漆黑的", "套房", "裡"], ["徹底壞掉", "，", "原地解散"]],
+
+                        // 51-60: 迷茫/虛無/抽象/哲學
+                        [["宇宙", "的", "微觀經驗", "在", "夜裡", "倒帶"], ["黑曜石", "映照出", "虛無", "的", "符號"], ["我們", "用", "沈默", "與", "塵埃", "對峙"], ["頃刻", "即是", "幻滅", "的", "永恆"], ["……", "沒有人", "能", "解密"]],
+                        [["時間", "的", "刻度", "在", "顯微鏡", "下", "失效"], ["我們", "是", "觀測者", "，", "也是", "仿製品"], ["在", "真空", "的", "結構", "裡"], ["生存", "，", "只是一場", "徒勞"]],
+                        [["神明", "在", "光天化日", "下", "保持安靜"], ["而", "人類", "在", "廢墟", "裡", "尋找", "密室"], ["占星", "與", "預言書", "都已", "過期"], ["我們", "只是", "平庸", "的", "觀察者"]],
+                        [["鏡子", "裡的", "臉", "，", "缺乏", "透明度"], ["日常構造", "是一座", "巨大的", "迷宮"], ["我", "在", "符號", "與", "代碼", "之間", "迷失"], ["找不到", "起點", "，", "也", "拒絕終點"]],
+                        [["記憶的殘片", "在", "培養皿", "裡", "發炎"], ["宿主", "忘記了", "最初的", "免疫"], ["關於", "存在"], ["不過是", "一場", "偶然的", "過敏反應"]],
+                        [["白噪音", "填充了", "萬物", "的", "縫隙"], ["萬花筒", "裡", "都是", "不對稱", "的", "幻覺"], ["世界", "在", "重設", "，", "而", "我"], ["在", "暫存檔", "裡", "靜止"]],
+                        [["地球儀", "旋轉出", "荒涼", "的", "軌道"], ["我們", "隔著", "時差", "進行", "無聲的", "對話"], ["文明", "是", "生鏽", "的", "齒輪"], ["在", "永夜", "中", "緩緩", "停滯"]],
+                        [["影子", "背叛了", "主體"], ["獨自", "走向", "沒有", "光", "的", "深淵"], ["真實", "與", "虛幻", "，", "失去", "了", "摩擦力"], ["這是一場", "盲目的", "煉金術"]],
+                        [["把", "空白鍵", "當作", "存在", "的", "證言"], ["在", "黑色的", "書頁", "上", "留下", "劃痕"], ["我們", "都是", "歷史", "的", "碎屑"], ["等候", "被", "格式化"]],
+                        [["極夜", "之下", "，", "沒有", "指南針"], ["所有的", "位移", "都", "失去了", "方向"], ["靈魂", "在", "冰冷的", "海嘯", "中"], ["沉淪", "，", "或", "臣服"]],
+
+                        // 61-70: 邊緣感知/冷感/微觀日常
+                        [["百葉窗", "割裂了", "午後", "的", "光線"], ["除濕機", "正在", "收集", "我", "眼淚", "的", "成分"], ["房間", "的", "濕度", "，", "剛好", "適合"], ["讓", "遺憾", "發霉"]],
+                        [["條碼", "無法", "讀取", "我", "的", "痛楚"], ["發票", "上的", "數字", "，", "是", "生存", "的", "代價"], ["我", "在", "超商", "微波", "著", "孤獨"], ["保鮮期", "，", "只到", "今晚", "子夜"]],
+                        [["耳塞", "隔絕了", "世界", "的", "摩擦力"], ["口罩", "背後", "，", "是一張", "壞掉", "的", "表情"], ["我", "在", "人群", "之中", "保持", "隱形"], ["這是我", "唯一的", "安全感"]],
+                        [["充電線", "太短", "，", "而", "寂寞", "太長"], ["手機", "在", "低電量", "模式", "中", "喘息"], ["你", "的", "頭貼", "，", "是", "一具"], ["拒絕", "連線", "的", "黑洞"]],
+                        [["油漆", "在", "老公寓", "的", "牆上", "剝落"], ["就像", "我們", "之間", "，", "生鏽", "的", "信任"], ["防火巷", "太窄"], ["裝不下", "兩個", "普通人", "的", "秘密"]],
+                        [["指甲油", "的", "氣味", "很", "尖銳"], ["它", "試圖", "掩蓋", "，", "日子裡", "的", "骯髒"], ["我", "用", "修正帶", "塗抹", "行事曆"], ["假裝", "明天", "是一片", "空白"]],
+                        [["捷運", "月台", "的", "黃色", "警戒線"], ["是我", "和", "這個世界", "，", "最後的", "對峙"], ["末班車", "駛過"], ["捲起", "一地", "感熱紙", "的", "灰塵"]],
+                        [["把", "便利貼", "貼滿", "生鏽", "的", "冰箱"], ["上面", "寫著", "：", "記得", "原諒自己"], ["但", "字跡", "被", "水漬", "暈開"], ["變成", "一場", "模糊", "的", "求救"]],
+                        [["過期", "的", "藥丸", "，", "躺在", "馬克杯", "底"], ["它", "看過", "我", "所有", "不稱職", "的", "眼淚"], ["百憂解", "無法", "收納"], ["今晚", "這場", "盛大的", "失眠"]],
+                        [["塑膠袋", "被", "風", "吹進了", "鐵絲網"], ["它", "掙扎", "的", "姿勢", "，", "很像"], ["我", "在", "日常構造", "裡"], ["小心翼翼", "的", "求生"]],
+
+                        // 71-80: 現代與新生代風格/都會哀傷
+                        [["你", "是", "限時動態", "裡", "閃退", "的", "風景"], ["我", "是", "已讀不回", "裡", "當機", "的", "草稿"], ["我們", "在", "通訊軟體", "裡", "相遇"], ["也在", "格式化", "後", "，", "互不相欠"]],
+                        [["把", "頭貼", "換成", "一片", "漆黑"], ["我在", "動態牆", "上", "進行", "一場", "無聲的", "微觀葬禮"], ["沒有人", "按讚"], ["這座", "都市", "，", "本來就", "畏光"]],
+                        [["便利商店", "的", "白噪音"], ["是", "失眠的人", "，", "唯一的", "聖經"], ["我", "和", "流浪狗", "在", "門口", "對視"], ["我們", "都是", "生活的", "邊緣人"]],
+                        [["包裹", "被", "退回", "，", "原因是", "：", "查無此人"], ["就像", "我", "發出", "的", "訊號", "，", "全被", "封鎖"], ["在", "這個", "高壓電線", "交織", "的", "城市"], ["我", "只是", "一個", "錯誤代碼"]],
+                        [["百憂解", "的", "糖衣", "，", "封印了", "尖銳"], ["但我", "的", "防線", "，", "依然", "在", "清晨", "崩塌"], ["看著", "體溫計", "上的", "刻度"], ["寂寞", "，", "正在", "發燒"]],
+                        [["感熱紙", "上的", "字跡", "，", "終究會", "消失"], ["就像", "悠遊卡", "裡", "餘額", "歸零", "的", "愛情"], ["我們", "在", "地下鐵", "錯身"], ["連", "摩擦力", "，", "都", "顯得", "奢侈"]],
+                        [["把", "寂寞", "剪碎", "，", "丟進", "垃圾桶"], ["塑膠袋", "卻", "裝不下", "，", "回憶", "的", "重量"], ["套房", "裡", "的", "冷氣機", "，", "在大聲", "抗議"], ["它說", "：", "日常", "已經", "超載"]],
+                        [["打卡機", "吞下", "我", "平庸", "的", "一天"], ["公事包", "裡", "裝著", "不稱職", "的", "靈魂"], ["我", "在", "紅綠燈", "路口", "假裝清醒"], ["卻", "在", "末班車", "裡", "徹底壞掉"]],
+                        [["螢幕截圖", "，", "留住了", "你", "溫柔的", "謊言"], ["但", "通話", "掛斷", "後的", "靜音"], ["才是", "世界", "，", "最真實的", "質地"], ["黑夜", "，", "正在", "緩緩", "下載"]],
+                        [["我", "在", "二手書店", "尋找", "一冊", "關於你的", "舊雜誌"], ["卻", "在", "夾縫", "裡", "，", "看到", "了", "遺憾"], ["密碼", "已經", "被", "變更"], ["你", "是", "我", "，", "再也", "登入", "不進的", "宇宙"]],
+
+                        // 81-90: 浪漫/唯美/大師典雅
+                        [["初夏", "的", "雷陣雨", "，", "打濕了", "手札"], ["你", "在", "信箋", "上", "留下", "清冽", "的", "墨跡"], ["那是一場", "關於", "青春", "的", "沉思"], ["直到", "暮色", "，", "將", "翠綠", "染成", "金黃"]],
+                        [["月光", "是", "海浪", "上", "遺落", "的", "琴鍵"], ["風鈴", "在", "彼岸", "，", "吟詠", "著", "永恆"], ["我們", "是", "長途", "跋涉", "的", "旅人"], ["在", "時光的", "港口", "，", "靜候", "重逢"]],
+                        [["落葉", "在", "荒野", "中", "跳完", "最後的", "裙擺"], ["飛鳥", "將", "影子", "，", "銘刻", "在", "星空"], ["容許", "我", "，", "用", "一生", "的", "低迴"], ["去", "記得", "你", "容顏", "的", "倒影"]],
+                        [["寒冬", "的", "春雷", "，", "驚醒了", "沉睡", "的", "青苔"], ["我", "在", "石階", "上", "，", "追憶", "昨日", "的", "年華"], ["命運", "雖然", "坎坷", "，", "但", "記憶"], ["是一枚", "包覆", "著", "溫潤", "的", "琥珀"]],
+                        [["飛蛾", "撲向", "最後的", "篝火"], ["那不是", "自毀", "，", "而是", "對", "光明", "的", "虔誠"], ["我們", "在", "塵世", "的", "塵囂", "裡"], ["尋覓", "，", "一個", "超脫", "的", "終點"]],
+                        [["玫瑰", "在", "荊棘", "中", "綻放", "出", "猩紅"], ["那是", "時光", "，", "給", "宿命", "最雋永", "的", "獨白"], ["窗櫺", "外的", "煙雨", "，", "模糊了", "背影"], ["但", "靈魂", "，", "依然", "清幽"]],
+                        [["琴聲", "穿透了", "白晝", "與", "夜色", "的", "邊界"], ["我", "在", "幽谷", "深處", "，", "靜靜", "聆聽"], ["流年", "斑駁", "了", "雕欄朱戶"], ["卻", "洗滌", "了", "心扉", "上的", "微塵"]],
+                        [["弦月", "掛在", "松濤", "的", "梢頭"], ["微茫", "的", "光暈", "，", "照亮了", "長途", "的", "足跡"], ["如果", "永恆", "只是", "一不小心", "的", "頃刻"], ["我", "願意", "，", "在", "此地", "停滯"]],
+                        [["朝霞", "是", "天空", "寫給", "海洋", "的", "情書"], ["波浪", "用", "漣漪", "，", "反覆", "擦拭", "著", "海岸線"], ["我們", "在", "黎明", "的", "燈塔", "下"], ["允許", "孤獨", "，", "化作", "飛翔", "的", "羽翼"]],
+                        [["把", "誓言", "折疊", "成", "一隻", "紙風箏"], ["任由", "它", "，", "飛向", "不可知", "的", "雲煙"], ["歲月", "終究", "會", "老去"], ["但", "歌謠", "，", "會", "在", "深處", "永駐"]],
+
+                        // 91-100: 實驗/晦澀/拼貼詩高峰
+                        [["結構", "在", "發炎", "，", "而", "代碼", "拒絕長大"], ["我", "用", "顯微鏡", "指認", "，", "純潔的惡意"], ["塑料花", "在", "無菌室", "裡", "盛開"], ["這是一場", "關於", "平庸", "的", "陰謀", "觀測"]],
+                        [["我們", "在", "空白鍵", "的", "廢墟", "上", "對峙"], ["已讀", "是", "一種", "具有", "摩擦力", "的", "沈默"], ["百憂解", "包裝紙", "，", "折疊", "成", "盲眼", "的", "玩偶"], ["在", "過期", "的", "日常構造", "裡", "墜毀"]],
+                        [["真空", "狀態下", "的", "日常", "，", "失去", "了", "對稱"], ["我", "被", "日常的褶皺", "勒死", "，", "哭不出聲"], ["藍芽耳機", "裡", "播放著", "死機畫面", "的", "白噪音"], ["這就是", "普通人", "，", "微觀宇宙", "的", "崩塌"]],
+                        [["你", "的", "側臉", "是一頁", "被", "格式化", "的", "歷史"], ["我", "在", "超商", "的", "夾縫", "中", "採集", "齒痕"], ["發炎", "的", "傷口", "，", "正在", "上傳", "寂寞"], ["安全感", "，", "低於", "低電量", "的", "刻度"]],
+                        [["霓虹碎屑", "滲透進", "破碎的", "魚缸"], ["倒影中的臉", "，", "是一個", "壞掉", "的", "怪物"], ["我們", "在", "捷運月台", "，", "進行", "過期", "的", "儀式"], ["拒絕安慰", "，", "原地解散"]],
+                        [["生活的褶皺", "裡", "，", "寄生", "著", "平庸的", "惡意"], ["我", "用", "打火機", "，", "偵測", "靈魂", "的", "透明度"], ["安眠藥", "在", "馬克杯", "裡", "液化"], ["這場", "日常", "，", "是一次", "無端的", "重擊"]],
+                        [["把", "秘密經驗", "，", "收納進", "百憂解", "的", "空白收據"], ["我們", "在", "地下鐵", "的", "軌道", "上", "慢跑"], ["已讀", "的", "微光", "，", "是", "唯一", "的", "指南針"], ["在", "生活的夾縫", "裡", "，", "徹底壞掉"]],
+                        [["過曝照片", "裡", "，", "日常構造", "正在", "風化"], ["條碼", "被", "撕毀", "，", "生存", "失去", "了", "摩擦力"], ["我", "在", "小套房", "裡", "，", "和", "塵埃", "共生"], ["等候", "一場", "把", "回憶", "格式化", "的", "暴風雨"]],
+                        [["便利貼牆", "上", "，", "寫滿了", "不勇敢", "的", "求救"], ["冷氣漏水", "的", "聲音", "，", "是", "都市", "的", "耳語"], ["我", "在", "草稿夾", "裡", "，", "囚禁", "了", "明天"], ["日常", "，", "終究是", "一場", "徒勞的", "發炎"]],
+                        [["我們", "都是", "被", "已讀", "的", "零件"], ["在", "老公寓", "的", "廢墟", "裡", "，", "假裝快樂"], ["螢幕", "熄滅", "，", "痛感", "歸零"], ["這就是", "，", "普通人的", "安全感"]]
+                    ];
+
+
+                    const emotionTones = ["sad", "happy", "complex", "simple", "vague", "harsh"];
+                    while (samplePoems.length < 100) {
+                        const tone = emotionTones[samplePoems.length % emotionTones.length];
+                        let p = [];
+                        if (tone === "sad") {
+                            p = [
+                                ["黑夜", "正在", "吞噬", "最後的", "安全感"],
+                                ["我", "在", "老公寓", "裡", "聽著", "白噪音"],
+                                ["寂寞", "是", "持續發炎", "的", "傷口"],
+                                ["徹底壞掉", "的", "人", "，", "拒絕安慰"]
+                            ];
+                        } else if (tone === "happy") {
+                            p = [
+                                ["海風", "吹過", "初夏", "的", "沿海公路"],
+                                ["遇見", "你", "是", "晴朗", "的", "魔術"],
+                                ["手牽手", "在", "星空", "下", "奔跑"],
+                                ["世界", "突然", "變得", "無比", "溫柔的"]
+                            ];
+                        } else if (tone === "complex") {
+                            p = [
+                                ["你", "的", "已讀", "是一顆", "真空", "的", "膠囊"],
+                                ["裡面", "包裝著", "純潔的惡意", "與", "依賴"],
+                                ["在", "生活的褶皺", "中", "反覆確認"],
+                                ["關於", "生存", "的", "摩擦力"],
+                                ["這就是", "我們", "病態的", "共生"]
+                            ];
+                        } else if (tone === "simple") {
+                            p = [
+                                ["下雨的人", "撐著", "破雨傘"],
+                                ["在", "紅綠燈", "路口", "佇立"],
+                                ["忘記", "了", "起點"],
+                                ["也", "找不到", "終點"]
+                            ];
+                        } else if (tone === "vague") {
+                            p = [
+                                ["宇宙", "的", "微觀經驗", "在", "夜裡", "倒帶"],
+                                ["黑曜石", "映照出", "虛無", "的", "符號"],
+                                ["我們", "用", "沈默", "與", "塵埃", "對峙"],
+                                ["頃刻", "即是", "幻滅", "的", "永恆"],
+                                ["……", "沒有人", "能", "解密"]
+                            ];
+                        } else {
+                            p = [
+                                ["討厭自己", "的", "平庸", "與", "不勇敢"],
+                                ["你", "用", "冷暴力", "瓦解", "了", "防線"],
+                                ["格式化", "所有", "過期", "的", "誓言"],
+                                ["垃圾桶", "裝滿了", "生活的碎屑"],
+                                ["崩壞", "之後", "，", "各自", "流浪"]
+                            ];
+                        }
+                        samplePoems.push(p);
+                    }
+
+                    function checkWatermark() {
+                        const hasTiles = canvas.querySelectorAll('.placed-tile').length > 0;
+                        if (hasTiles) {
+                            canvas.classList.add('has-tiles');
+                        } else {
+                            canvas.classList.remove('has-tiles');
+                        }
+                    }
+
+                    closeSidebarBtn.addEventListener('click', () => sidebar.classList.add('collapsed'));
+                    openSidebarBtn.addEventListener('click', () => sidebar.classList.remove('collapsed'));
+
+                    function bindPlacedTileEvents(tile) {
+                        tile.addEventListener('dragstart', (e) => {
+                            e.dataTransfer.setData('text/plain', tile.id);
+                            const rect = tile.getBoundingClientRect();
+                            e.dataTransfer.setData('offsetX', e.clientX - rect.left);
+                            e.dataTransfer.setData('offsetY', e.clientY - rect.top);
+                        });
+                        tile.addEventListener('dblclick', () => {
+                            tile.remove();
+                            checkWatermark();
+                        });
+                        applySingleTileStyle(tile);
+                    }
+
+                    function applySingleTileStyle(tile) {
+                        tile.style.backgroundColor = currentTileStyle.bg;
+                        tile.style.color = currentTileStyle.text;
+                        tile.style.borderColor = currentTileStyle.border;
+                    }
+
+                    const bindBgButtons = (selector) => {
+                        document.querySelectorAll(selector).forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                document.querySelectorAll('#bg-palette-light .color-btn, #bg-palette-dark .color-btn').forEach(b => b.classList.remove('active'));
+                                btn.classList.add('active');
+                                canvas.style.backgroundColor = btn.getAttribute('data-color');
+                            });
+                        });
+                    };
+                    bindBgButtons('#bg-palette-light .color-btn');
+                    bindBgButtons('#bg-palette-dark .color-btn');
+
+                    const bindTileButtons = (selector) => {
+                        document.querySelectorAll(selector).forEach(btn => {
+                            btn.addEventListener('click', () => {
+                                document.querySelectorAll('#tile-palette-light .color-btn, #tile-palette-dark .color-btn').forEach(b => b.classList.remove('active'));
+                                btn.classList.add('active');
+
+                                currentTileStyle.bg = btn.getAttribute('data-bg');
+                                currentTileStyle.text = btn.getAttribute('data-text');
+                                currentTileStyle.border = btn.getAttribute('data-border');
+
+                                canvas.querySelectorAll('.placed-tile').forEach(tile => applySingleTileStyle(tile));
+                            });
+                        });
+                    };
+                    bindTileButtons('#tile-palette-light .color-btn');
+                    bindTileButtons('#tile-palette-dark .color-btn');
+
+                    function sendWordToCanvas(wordText) {
+                        const clonedTile = document.createElement('div');
+                        clonedTile.id = 'cloned-t-' + cloneCounter++;
+                        clonedTile.classList.add('placed-tile');
+                        clonedTile.setAttribute('draggable', 'true');
+                        clonedTile.textContent = wordText;
+
+                        // 👇 1. 🔍 新增這段：動態獲取當前畫布的實際像素寬高（自動適應電腦或手機）
+                        const canvasRect = canvas.getBoundingClientRect();
+                        const canvasWidth = canvasRect.width;
+                        const canvasHeight = canvasRect.height;
+
+                        // 👇 2. 🧮 修正：根據目前螢幕大小，計算出絕對安全的置中位置（扣除字卡寬高預估值）
+                        const safeMaxLeft = Math.max(50, canvasWidth - 100);
+                        const safeMaxTop = Math.max(50, canvasHeight - 60);
+
+                        // 🗺️ 調整點擊生成時的初始偏離幅度（改為在畫布安全範圍內隨機散落）
+                        clonedTile.style.left = (Math.random() * safeMaxLeft) + 'px';
+                        clonedTile.style.top = (Math.random() * safeMaxTop) + 'px';
+
+                        // 🔄 點擊生成或雙擊加入時，大幅增加隨機偏轉弧度 (-5.5 deg ~ +5.5 deg)
+                        const randomRotate = (Math.random() * 11 - 5.5).toFixed(1);
+                        clonedTile.style.transform = `rotate(${randomRotate}deg)`;
+
+                        bindPlacedTileEvents(clonedTile);
+                        canvas.appendChild(clonedTile);
+                        checkWatermark();
+                    }
+
+                    Object.keys(wordCategories).forEach(catId => {
+                        const pool = document.getElementById(catId);
+                        if (!pool) return;
+                        wordCategories[catId].forEach((word, index) => {
+                            const tile = document.createElement('div');
+                            tile.classList.add('word-tile');
+                            tile.setAttribute('draggable', 'true');
+                            tile.setAttribute('id', catId + '-t-' + index);
+                            tile.textContent = word;
+
+                            tile.addEventListener('dragstart', (e) => {
+                                e.dataTransfer.setData('text/plain', tile.id);
+                                const rect = tile.getBoundingClientRect();
+                                e.dataTransfer.setData('offsetX', e.clientX - rect.left);
+                                e.dataTransfer.setData('offsetY', e.clientY - rect.top);
+                                tile.classList.add('dragging');
+                            });
+                            tile.addEventListener('dragend', () => tile.classList.remove('dragging'));
+                            tile.addEventListener('dblclick', () => {
+                                sendWordToCanvas(tile.textContent);
+                                window.scrollTo({
+                                    top: 0,
+                                    behavior: 'smooth' // 'smooth' 代表平滑滾動
+                                });
+                            });
+
+                            pool.appendChild(tile);
+                        });
+                    });
+
+                    document.addEventListener('dragover', (e) => {
+                        if (e.clientY < 80) {
+                            if (!scrollInterval) {
+                                scrollInterval = setInterval(() => { window.scrollBy(0, -32); }, 16);
+                            }
+                        } else {
+                            clearInterval(scrollInterval);
+                            scrollInterval = null;
+                        }
+                    });
+
+                    document.addEventListener('dragend', () => { clearInterval(scrollInterval); scrollInterval = null; });
+                    document.addEventListener('drop', () => { clearInterval(scrollInterval); scrollInterval = null; });
+
+                    const customInput = document.getElementById('custom-word-input');
+                    const customBtn = document.getElementById('custom-word-btn');
+                    function createCustomWord() {
+                        const text = customInput.value.trim();
+                        if (text === '') return;
+                        sendWordToCanvas(text);
+                        customInput.value = '';
+                        customInput.focus();
+                    }
+                    customBtn.addEventListener('click', createCustomWord);
+                    customInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') createCustomWord(); });
+
+                    // 🤖 核心修改：大幅加強 AI 靈感範例生成時的隨機偏離與震盪幅度
+                    document.getElementById('generate-poem-btn').addEventListener('click', () => {
+                        canvas.querySelectorAll('.placed-tile').forEach(tile => tile.remove());
+
+                        const bgButtons = document.querySelectorAll('#bg-palette-light .color-btn, #bg-palette-dark .color-btn');
+                        const tileButtons = document.querySelectorAll('#tile-palette-light .color-btn, #tile-palette-dark .color-btn');
+
+                        const randomBgBtn = bgButtons[Math.floor(Math.random() * bgButtons.length)];
+                        const randomTileBtn = tileButtons[Math.floor(Math.random() * tileButtons.length)];
+
+                        bgButtons.forEach(b => b.classList.remove('active'));
+                        randomBgBtn.classList.add('active');
+                        canvas.style.backgroundColor = randomBgBtn.getAttribute('data-color');
+
+                        tileButtons.forEach(b => b.classList.remove('active'));
+                        randomTileBtn.classList.add('active');
+                        currentTileStyle.bg = randomTileBtn.getAttribute('data-bg');
+                        currentTileStyle.text = randomTileBtn.getAttribute('data-text');
+                        currentTileStyle.border = randomTileBtn.getAttribute('data-border');
+
+                        const randomPoem = samplePoems[Math.floor(Math.random() * samplePoems.length)];
+
+                        const rowHeight = 76;
+                        const totalLines = randomPoem.length;
+
+                        const canvasWidth = canvas.clientWidth || 900;
+                        const canvasHeight = canvas.clientHeight || 700;
+
+                        const poemTotalHeight = totalLines * rowHeight;
+                        const startTop = (canvasHeight - poemTotalHeight) / 2;
+
+                        // 增加基本水平間距，防範大幅度傾斜時字卡互相穿透
+                        const baseGap = 4;
+
+                        const tempContainer = document.createElement('div');
+                        tempContainer.style.position = 'absolute';
+                        tempContainer.style.visibility = 'hidden';
+                        tempContainer.style.whiteSpace = 'nowrap';
+                        tempContainer.style.fontFamily = '"PMingLiU", "MingLiU", "新細明體", serif';
+                        tempContainer.style.fontSize = '1.15rem';
+                        tempContainer.style.letterSpacing = '2px';
+                        tempContainer.style.paddingLeft = '20px';
+                        tempContainer.style.fontWeight = 'bold';
+                        const tilePaddingX = 38;
+                        document.body.appendChild(tempContainer);
+
+                        randomPoem.forEach((lineWords, rowIndex) => {
+                            // ↕️ 加大每行之間的上下隨機震盪偏離 (原本 -6~6 -> 現在 -16~16)
+                            const currentTop = startTop + (rowIndex * rowHeight) + (Math.random() * 32 - 16);
+
+                            let totalRowWidth = 0;
+                            const wordWidths = [];
+
+                            lineWords.forEach((word) => {
+                                tempContainer.textContent = word;
+                                const w = tempContainer.offsetWidth + tilePaddingX;
+                                wordWidths.push(w);
+                                totalRowWidth += w;
+                            });
+                            totalRowWidth += (lineWords.length - 1) * baseGap;
+
+                            // ↔️ 加大整行首字起始位置的左右隨機漂移 (原本 -15~15 -> 現在 -45~45)
+                            let currentLeft = ((canvasWidth - totalRowWidth) / 2) + (Math.random() * 90 - 45);
+
+                            lineWords.forEach((word, idx) => {
+                                const sampleTile = document.createElement('div');
+                                sampleTile.classList.add('placed-tile');
+                                sampleTile.setAttribute('draggable', 'true');
+                                sampleTile.setAttribute('id', 'cloned-t-' + cloneCounter++);
+                                sampleTile.textContent = word;
+
+                                // ↕️ 給單一字卡微調其垂直落差，營造高低起伏錯落感
+                                const individualTopY = currentTop + (Math.random() * 12 - 6);
+                                sampleTile.style.top = individualTopY + 'px';
+                                sampleTile.style.left = currentLeft + 'px';
+
+                                // 🔄 大幅加大靈感生成時，每個字卡的扭曲旋轉角度 (-5.5 deg ~ +5.5 deg)
+                                const randomRotate = (Math.random() * 11 - 5.5).toFixed(1);
+                                sampleTile.style.transform = `rotate(${randomRotate}deg)`;
+
+                                bindPlacedTileEvents(sampleTile);
+                                canvas.appendChild(sampleTile);
+
+                                // ↔️ 字卡與字卡間增加額外的隨機寬度波動間距
+                                const randomGap = baseGap + (Math.random() * 6 - 3);
+                                currentLeft += wordWidths[idx] + randomGap;
+                            });
+                        });
+
+                        document.body.removeChild(tempContainer);
+                        checkWatermark();
+                    });
+
+                    clearAllBtn.addEventListener('click', () => {
+                        const placedTiles = canvas.querySelectorAll('.placed-tile');
+                        if (placedTiles.length > 0 && confirm('確定要清空畫布上所有的字卡嗎？')) {
+                            placedTiles.forEach(tile => tile.remove());
+                            checkWatermark();
+                        }
+                    });
+
+                    const searchInput = document.getElementById('word-search');
+                    const searchClearBtn = document.getElementById('search-clear-btn');
+                    searchInput.addEventListener('input', (e) => {
+                        const val = e.target.value.trim().toLowerCase();
+                        if (val === '') {
+                            document.querySelectorAll('.word-tile').forEach(tile => tile.style.display = 'block');
+                            document.querySelectorAll('.sub-category-row').forEach(row => row.style.display = 'flex');
+                            document.querySelectorAll('.main-category-block').forEach(block => block.style.display = 'block');
+                            searchClearBtn.style.display = 'none';
+                            return;
+                        }
+                        searchClearBtn.style.display = 'block';
+                        document.querySelectorAll('.main-category-block').forEach(block => {
+                            let blockVisible = false;
+                            block.querySelectorAll('.sub-category-row').forEach(row => {
+                                let rowVisible = false;
+                                row.querySelectorAll('.word-tile').forEach(tile => {
+                                    if (tile.textContent.toLowerCase().includes(val)) {
+                                        tile.style.display = 'block';
+                                        rowVisible = true;
+                                        blockVisible = true;
+                                    } else {
+                                        tile.style.display = 'none';
+                                    }
+                                });
+                                row.style.display = rowVisible ? 'flex' : 'none';
+                            });
+                            block.style.display = blockVisible ? 'block' : 'none';
+                        });
+                    });
+                    searchClearBtn.addEventListener('click', () => {
+                        searchInput.value = '';
+                        document.querySelectorAll('.word-tile').forEach(tile => tile.style.display = 'block');
+                        document.querySelectorAll('.sub-category-row').forEach(row => row.style.display = 'flex');
+                        document.querySelectorAll('.main-category-block').forEach(block => block.style.display = 'block');
+                        searchClearBtn.style.display = 'none';
+                        searchInput.focus();
+                    });
+
+                    canvas.addEventListener('dragover', (e) => e.preventDefault());
+                    canvas.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        const id = e.dataTransfer.getData('text/plain');
+                        const offsetX = parseFloat(e.dataTransfer.getData('offsetX')) || 0;
+                        const offsetY = parseFloat(e.dataTransfer.getData('offsetY')) || 0;
+                        let el = document.getElementById(id);
+                        if (!el) return;
+                        const rect = canvas.getBoundingClientRect();
+                        let left = e.clientX - rect.left - offsetX;
+                        let top = e.clientY - rect.top - offsetY;
+
+                        if (el.parentElement !== canvas) {
+                            const clonedTile = el.cloneNode(true);
+                            clonedTile.id = 'cloned-t-' + cloneCounter++;
+                            clonedTile.classList.remove('word-tile');
+                            clonedTile.classList.add('placed-tile');
+
+                            // 🔄 從下方拖曳新卡片至畫布放開時，同樣賦予大弧度的隨機旋轉角度 (-5.5 deg ~ +5.5 deg)
+                            const randomRotate = (Math.random() * 11 - 5.5).toFixed(1);
+                            clonedTile.style.transform = `rotate(${randomRotate}deg)`;
+
+                            bindPlacedTileEvents(clonedTile);
+                            canvas.appendChild(clonedTile);
+                            el = clonedTile;
+                        }
                         el.style.left = Math.max(0, Math.min(left, canvas.clientWidth - el.offsetWidth)) + 'px';
                         el.style.top = Math.max(0, Math.min(top, canvas.clientHeight - el.offsetHeight)) + 'px';
                         checkWatermark();
