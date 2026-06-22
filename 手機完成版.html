@@ -598,6 +598,36 @@
                     -webkit-user-drag: element;
                     /* 確保 iOS 裝置加強支援 */
                 }
+
+                /* 1. 🛠️ 強制切齊！不讓任何字卡超出畫布邊界 */
+                .canvas-container {
+                    width: 100%;
+                    height: 450px;
+                    overflow: hidden !important;
+                    /* 👈 把 auto 改為 hidden，超出畫布的字卡會直接被切掉，不撐開網頁 */
+                    position: relative;
+                }
+
+                #canvas {
+                    min-width: 100%;
+                    width: 100%;
+                    height: 450px;
+                    overflow: hidden !important;
+                    /* 👈 雙重保險，確保字卡乖乖待在格子內 */
+                }
+
+                /* 2. 📱 縮小畫布內字卡的尺寸與留白，讓它更適配小螢幕 */
+                .placed-tile,
+                .word-tile {
+                    font-size: 0.8rem !important;
+                    /* 讓字體小一點（例如原本如果是 1rem 或 16px） */
+                    padding: 4px 8px !important;
+                    /* 縮減字卡上下左右的內邊距 */
+                    max-width: 90vw;
+                    /* 防止自訂很長字詞時把手機撐爆 */
+                    white-space: nowrap;
+                    /* 確保字卡不會因為變小而尷尬折行 */
+                }
             }
 
             h1 {
