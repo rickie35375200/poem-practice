@@ -587,159 +587,126 @@
         /* ==========================================================================
            📱 行動裝置與平板自動適配優化（當螢幕寬度小於 992px 時啟用）
            ========================================================================== */
+        /* ==========================================================================
+           📱 行動裝置與平板自動適配終極加強版（寬度小於 992px 時啟用）
+           ========================================================================== */
         @media screen and (max-width: 992px) {
             body {
-                padding: 15px 5px;
-
-                /* 縮小網頁四周留白，騰出更多空間給字卡 */
-                .word-tile,
-                .placed-tile {
-                    touch-action: none;
-                    -webkit-user-drag: element;
-                    /* 確保 iOS 裝置加強支援 */
-                }
-
-                /* 1. 🛠️ 強制切齊！不讓任何字卡超出畫布邊界 */
-                .canvas-container {
-                    width: 100%;
-                    height: 450px;
-                    overflow: hidden !important;
-                    /* 👈 把 auto 改為 hidden，超出畫布的字卡會直接被切掉，不撐開網頁 */
-                    position: relative;
-                }
-
-                #canvas {
-                    min-width: 100%;
-                    width: 100%;
-                    height: 450px;
-                    overflow: hidden !important;
-                    /* 👈 雙重保險，確保字卡乖乖待在格子內 */
-                }
-
-                /* 2. 📱 縮小畫布內字卡的尺寸與留白，讓它更適配小螢幕 */
-                .placed-tile,
-                .word-tile {
-                    font-size: 0.8rem !important;
-                    /* 讓字體小一點（例如原本如果是 1rem 或 16px） */
-                    padding: 4px 8px !important;
-                    /* 縮減字卡上下左右的內邊距 */
-                    max-width: 90vw;
-                    /* 防止自訂很長字詞時把手機撐爆 */
-                    white-space: nowrap;
-                    /* 確保字卡不會因為變小而尷尬折行 */
-                }
+                padding: 15px 5px !important;
             }
 
             h1 {
-                font-size: 1.4rem;
-                /* 縮小大標題，避免在手機上換行 */
-                letter-spacing: 4px;
+                font-size: 1.4rem !important;
+                letter-spacing: 4px !important;
             }
 
             .subtitle {
-                font-size: 0.8rem;
-                margin-bottom: 15px;
+                font-size: 0.8rem !important;
+                margin-bottom: 15px !important;
             }
 
-            /* 1. 讓原本左右並排的「畫布 + 側邊欄」在手機上改成上下垂直排列 */
+            /* 1. 垂直排列 */
             .main-layout {
-                flex-direction: column;
-                height: auto;
-                /* 解除原本固定的 704px 高度 */
-                width: 100%;
-                gap: 15px;
+                flex-direction: column !important;
+                height: auto !important;
+                width: 100% !important;
+                gap: 15px !important;
             }
 
-            /* 2. 讓畫布外框滿版，並降低高度，方便一邊看畫布一邊選下方的字卡 */
+            /* 2. 🧱 強制鎖死畫布容器尺寸，不允許任何子元素撐開它 */
             .canvas-container {
-                width: 100%;
-                height: 450px;
-                /* 手機版畫布高度 */
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 400px !important; /* 稍微縮小一點，更適合手機 */
+                overflow: hidden !important; /* 👈 絕對不允許滾動條出現 */
+                position: relative !important;
+                box-sizing: border-box !important;
             }
 
-            /* 3. 🛠️ 核心修正：解除電腦版的 900px 限制，讓畫布寬度能隨著手機螢幕靈活縮小 */
+            /* 3. 解除 900px 限制，並鎖死寬高 */
             #canvas {
-                min-width: 100%;
-                width: 100%;
-                height: 450px;
+                min-width: 100% !important; 
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 400px !important;
+                overflow: hidden !important; /* 👈 雙重保險，把超出的字卡直接剪掉 */
+                position: relative !important;
+                box-sizing: border-box !important;
             }
 
-            /* 調整畫布中央的預設提示文字，防止在手機上折行或字體過大 */
             #canvas::before {
-                font-size: 0.95rem;
-                letter-spacing: 4px;
-                white-space: normal;
-                line-height: 1.4;
-                width: 85%;
+                font-size: 0.9rem !important;
+                letter-spacing: 4px !important;
+                white-space: normal !important;
+                line-height: 1.4 !important;
+                width: 85% !important;
             }
 
-            /* 4. 將右側控制欄（側邊欄）在手機上改為滿版排列 */
+            /* 4. 工具箱調整 */
             .style-sidebar {
-                width: 100%;
-                min-width: 100%;
-                height: auto;
-                /* 從固定 700px 改為依內容自動延伸 */
-                padding: 15px;
+                width: 100% !important;
+                min-width: 100% !important;
+                height: auto !important;
+                padding: 12px !important;
+                box-sizing: border-box !important;
             }
 
-            /* 如果側邊欄在手機上被折疊（collapsed），直接隱藏它，不留空隙 */
             .style-sidebar.collapsed {
-                width: 100%;
-                min-width: 100%;
-                margin-right: 0;
-                display: none;
+                display: none !important; 
             }
 
-            /* 5. 頂部控制列（搜尋、自訂字詞、清除按鈕）在手機上自動調整間距 */
+            /* 5. 🛠️ 解決「字卡間距沒變小」的核心：縮小字卡尺寸、字體、以及外邊距 */
+            .placed-tile, .word-tile {
+                font-size: 0.8rem !important;      /* 縮小字體 */
+                padding: 4px 6px !important;       /* 縮小字卡內部的留白 */
+                margin: 2px !important;            /* 👈 強制縮小字卡與字卡之間的外邊距 */
+                letter-spacing: 0px !important;    /* 縮小字距 */
+                line-height: 1.2 !important;
+                display: inline-block !important;
+            }
+
+            /* 6. 控制列每行兩個排好 */
             .control-container {
-                width: 100%;
-                gap: 10px;
+                width: 100% !important;
+                gap: 8px !important;
             }
 
-            .custom-wrapper,
-            .search-wrapper,
-            .trash-zone,
-            .clear-all-btn,
-            .ai-btn {
-                flex: 1 1 calc(50% - 10px);
-                /* 讓這些控制按鈕在手機上每行兩個自動排好 */
-                min-width: 140px;
-                max-width: 100%;
+            .custom-wrapper, .search-wrapper, .trash-zone, .clear-all-btn, .ai-btn {
+                flex: 1 1 calc(50% - 8px) !important;
+                min-width: 120px !important;
+                max-width: 100% !important;
+                height: 38px !important; /* 按鈕高度微縮 */
             }
 
-            /* 6. 下方字詞池的分類調整 */
+            /* 7. 下方字詞池改為垂直分層，字卡緊密排列 */
             .pool-container {
-                width: 100%;
-                gap: 15px;
+                width: 100% !important;
+                gap: 12px !important;
             }
 
             .main-category-block {
-                padding: 12px;
+                padding: 10px !important;
             }
 
-            /* 將「大師意象」等分類標籤與裡面的字詞改為上下排列，不再硬性左右分欄 */
             .sub-category-row {
-                flex-direction: column;
-                gap: 8px;
-                padding-bottom: 8px;
+                flex-direction: column !important;
+                gap: 6px !important;
+                padding-bottom: 6px !important;
             }
 
             .sub-category-label {
-                width: 100%;
-                min-width: 100%;
-                padding-top: 0;
-                border-bottom: 1px solid #e6e0d4;
-                padding-bottom: 4px;
+                width: 100% !important;
+                min-width: 100% !important;
+                padding-top: 0 !important;
+                border-bottom: 1px solid #e6e0d4 !important;
+                padding-bottom: 2px !important;
             }
 
-            .sub-category-label span {
-                display: inline;
-                margin-left: 6px;
-            }
-
-            /* 限制字卡池在手機上的最大高度，避免網頁被拉得太長 */
+            /* 🛠️ 縮小字詞池字卡的間距與排列 */
             .word-pool {
-                max-height: 150px;
+                max-height: 140px !important;
+                gap: 4px !important; /* 👈 縮小下方字卡池的間距 */
+                padding: 4px 0 !important;
             }
         }
     </style>
